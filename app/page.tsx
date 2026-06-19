@@ -437,7 +437,7 @@ export default function DashboardPage() {
           <button onClick={() => { setProfileForm({ name: profile?.name || '', quote: profile?.quote || '' }); setEditProfileOpen(true); }}
             className="flex items-center gap-2 group">
             <h1 className="text-xl font-bold text-[#1A1A2E]">
-              {profile?.name ? `Hi, ${profile.name.split(' ')[0]} 👋` : 'Calm Finance 👋'}
+              {profile?.name ? `Hi, ${profile.name.split(' ')[0]} 👋` : '22millie 👋'}
             </h1>
             <Edit2 size={12} className="text-[#CCCCDD] group-hover:text-[#7B61FF] transition-colors"/>
           </button>
