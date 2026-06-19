@@ -40,6 +40,13 @@ export interface GoalDeposit {
   note?: string;
 }
 
+export interface CustomCategory {
+  value: string;
+  label: string;
+  icon: string;
+  color: string;
+}
+
 export interface AIInsight {
   id?: number;
   text: string;

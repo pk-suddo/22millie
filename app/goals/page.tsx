@@ -2,11 +2,11 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useStore } from '@/store/useStore';
-import { formatCurrency, formatDateShort, monthlySavingsNeeded, monthsUntil } from '@/lib/utils';
+import { formatCurrency, formatDateShort, monthlySavingsNeeded, monthsUntil, EXPENSE_CATEGORIES } from '@/lib/utils';
 import { GoalForm } from '@/components/goals/GoalForm';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/toast';
-import { Plus, X, Trash2, Edit2, Check } from 'lucide-react';
+import { Plus, X, Trash2, Check, RefreshCw } from 'lucide-react';
 import type { Goal } from '@/lib/db';
 
 /* ── Progress Ring ─────────────────────────────────────────── */
@@ -30,44 +30,62 @@ function Ring({ pct, size = 80, color = '#7B61FF' }: { pct: number; size?: numbe
 
 /* ── Goal Detail Drawer ─────────────────────────────────────── */
 function GoalDrawer({ goal, onClose }: { goal: Goal; onClose: () => void }) {
-  const { goalDeposits, addGoalDeposit, updateGoal, deleteGoal } = useStore();
+  const { goalDeposits, addGoalDeposit, updateGoal, deleteGoal, addExpense } = useStore();
   const { toast } = useToast();
+  const currency = useStore(s => s.profile?.currency) || 'NPR';
+
+  const [tab, setTab] = useState<'deposit' | 'recurring'>('deposit');
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
   const [adding, setAdding] = useState(false);
-  const currency = useStore(s => s.profile?.currency) || 'NPR';
+
+  // Recurring form
+  const [recAmount, setRecAmount] = useState('');
+  const [recCategory, setRecCategory] = useState('Other');
+  const [recNote, setRecNote] = useState('');
+  const [addingRec, setAddingRec] = useState(false);
 
   const deposits = goalDeposits.filter(d => d.goalId === goal.id).sort((a, b) => b.date.localeCompare(a.date));
   const pct = Math.min((goal.currentSaved / goal.targetAmount) * 100, 100);
   const monthly = monthlySavingsNeeded(goal.targetAmount, goal.currentSaved, goal.targetDate);
   const months = monthsUntil(goal.targetDate);
   const remaining = goal.targetAmount - goal.currentSaved;
-
   const ringColor = pct >= 100 ? '#00C896' : pct >= 60 ? '#7B61FF' : pct >= 30 ? '#FFB547' : '#FF6152';
 
-  const handleAdd = async () => {
+  const handleAddDeposit = async () => {
     const n = parseFloat(amount);
     if (!n || n <= 0) return;
     await addGoalDeposit(goal.id!, n, note || undefined);
     toast(`Added ${formatCurrency(n, currency)} 🎉`);
-    setAmount(''); setNote('');
+    setAmount(''); setNote(''); setAdding(false);
+  };
+
+  const handleAddRecurring = async () => {
+    const n = parseFloat(recAmount);
+    if (!n || n <= 0) return;
+    const today = new Date().toISOString().split('T')[0];
+    await addExpense({
+      amount: n,
+      category: recCategory,
+      date: today,
+      note: recNote || `${goal.name} — recurring`,
+      tags: ['recurring'],
+    });
+    toast(`Recurring payment of ${formatCurrency(n, currency)} logged 🔄`);
+    setRecAmount(''); setRecNote(''); setAddingRec(false);
   };
 
   return (
-    <motion.div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-    >
+    <motion.div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
       <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose}/>
       <motion.div
         className="relative bg-white w-full max-w-lg rounded-t-3xl sm:rounded-3xl overflow-hidden max-h-[92vh] flex flex-col"
         initial={{ y: 60, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         exit={{ y: 60, opacity: 0 }}
-        transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-      >
+        transition={{ type: 'spring', damping: 28, stiffness: 300 }}>
+
         {/* Header */}
         <div className="px-6 pt-6 pb-4 border-b border-[#F5F5F8]">
           <div className="flex items-start justify-between">
@@ -107,37 +125,82 @@ function GoalDrawer({ goal, onClose }: { goal: Goal; onClose: () => void }) {
           </div>
         </div>
 
-        {/* Add savings */}
+        {/* Tab switcher */}
+        <div className="flex gap-1 px-6 pt-4 pb-0">
+          <button onClick={() => setTab('deposit')}
+            className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all ${tab === 'deposit' ? 'text-white' : 'text-[#9096B4] hover:bg-[#F5F5F8]'}`}
+            style={tab === 'deposit' ? { background: 'linear-gradient(135deg, #7B61FF, #5B41CF)' } : {}}>
+            💰 Add Savings
+          </button>
+          <button onClick={() => setTab('recurring')}
+            className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-1.5 ${tab === 'recurring' ? 'text-white' : 'text-[#9096B4] hover:bg-[#F5F5F8]'}`}
+            style={tab === 'recurring' ? { background: 'linear-gradient(135deg, #FFB547, #E09030)' } : {}}>
+            <RefreshCw size={13}/> Recurring
+          </button>
+        </div>
+
+        {/* Tab content */}
         <div className="px-6 py-4 border-b border-[#F5F5F8]">
           <AnimatePresence mode="wait">
-            {adding ? (
-              <motion.div key="form" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-                className="space-y-3">
-                <div className="flex gap-2">
-                  <input
-                    type="number" placeholder="Amount" value={amount}
-                    onChange={e => setAmount(e.target.value)}
-                    className="flex-1 px-3 py-2.5 rounded-xl border border-[#EEEDF5] bg-[#FAFAF8] text-sm text-[#1A1A2E] placeholder:text-[#C0BFCC] focus:outline-none focus:border-[#7B61FF]"
-                    autoFocus
-                  />
-                  <input
-                    type="text" placeholder="Note (optional)" value={note}
-                    onChange={e => setNote(e.target.value)}
-                    className="flex-1 px-3 py-2.5 rounded-xl border border-[#EEEDF5] bg-[#FAFAF8] text-sm text-[#1A1A2E] placeholder:text-[#C0BFCC] focus:outline-none focus:border-[#7B61FF]"
-                    onKeyDown={e => e.key === 'Enter' && handleAdd()}
-                  />
-                </div>
-                <div className="flex gap-2">
-                  <button onClick={() => setAdding(false)} className="flex-1 py-2.5 rounded-xl bg-[#F5F5F8] text-[#9096B4] text-sm font-semibold">Cancel</button>
-                  <button onClick={handleAdd} className="flex-1 py-2.5 rounded-xl text-white text-sm font-semibold" style={{ background: 'linear-gradient(135deg, #7B61FF, #5B41CF)' }}>Add</button>
-                </div>
+            {tab === 'deposit' ? (
+              <motion.div key="deposit" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }}>
+                <AnimatePresence mode="wait">
+                  {adding ? (
+                    <motion.div key="form" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-3">
+                      <div className="flex gap-2">
+                        <input type="number" placeholder="Amount" value={amount} onChange={e => setAmount(e.target.value)}
+                          className="flex-1 px-3 py-2.5 rounded-xl border border-[#EEEDF5] bg-[#FAFAF8] text-sm text-[#1A1A2E] placeholder:text-[#C0BFCC] focus:outline-none focus:border-[#7B61FF]"
+                          autoFocus/>
+                        <input type="text" placeholder="Note (optional)" value={note} onChange={e => setNote(e.target.value)}
+                          className="flex-1 px-3 py-2.5 rounded-xl border border-[#EEEDF5] bg-[#FAFAF8] text-sm text-[#1A1A2E] placeholder:text-[#C0BFCC] focus:outline-none focus:border-[#7B61FF]"
+                          onKeyDown={e => e.key === 'Enter' && handleAddDeposit()}/>
+                      </div>
+                      <div className="flex gap-2">
+                        <button onClick={() => setAdding(false)} className="flex-1 py-2.5 rounded-xl bg-[#F5F5F8] text-[#9096B4] text-sm font-semibold">Cancel</button>
+                        <button onClick={handleAddDeposit} className="flex-1 py-2.5 rounded-xl text-white text-sm font-semibold" style={{ background: 'linear-gradient(135deg, #7B61FF, #5B41CF)' }}>Save</button>
+                      </div>
+                    </motion.div>
+                  ) : (
+                    <motion.button key="btn" initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                      onClick={() => setAdding(true)}
+                      className="w-full py-3 rounded-2xl border-2 border-dashed border-[#EEEDF5] text-[#7B61FF] text-sm font-semibold hover:border-[#7B61FF]/50 hover:bg-[#F8F6FF] transition-colors flex items-center justify-center gap-2">
+                      <Plus size={15}/> Add deposit
+                    </motion.button>
+                  )}
+                </AnimatePresence>
               </motion.div>
             ) : (
-              <motion.button key="btn" initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-                onClick={() => setAdding(true)}
-                className="w-full py-3 rounded-2xl border-2 border-dashed border-[#EEEDF5] text-[#7B61FF] text-sm font-semibold hover:border-[#7B61FF]/50 hover:bg-[#F8F6FF] transition-colors flex items-center justify-center gap-2">
-                <Plus size={15}/> Add Savings
-              </motion.button>
+              <motion.div key="recurring" initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }}>
+                <p className="text-xs text-[#9096B4] mb-3">Log a recurring payment for this goal — it will appear in Expenses with a 🔄 tag and count in your Recurring total.</p>
+                <AnimatePresence mode="wait">
+                  {addingRec ? (
+                    <motion.div key="rec-form" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-2">
+                      <div className="flex gap-2">
+                        <input type="number" placeholder="Amount" value={recAmount} onChange={e => setRecAmount(e.target.value)}
+                          className="flex-1 px-3 py-2.5 rounded-xl border border-[#EEEDF5] bg-[#FAFAF8] text-sm text-[#1A1A2E] placeholder:text-[#C0BFCC] focus:outline-none focus:border-[#FFB547]"
+                          autoFocus/>
+                        <select value={recCategory} onChange={e => setRecCategory(e.target.value)}
+                          className="flex-1 px-3 py-2.5 rounded-xl border border-[#EEEDF5] bg-[#FAFAF8] text-sm text-[#1A1A2E] focus:outline-none focus:border-[#FFB547]">
+                          {EXPENSE_CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.icon} {c.label}</option>)}
+                        </select>
+                      </div>
+                      <input type="text" placeholder={`Note (default: ${goal.name} — recurring)`} value={recNote} onChange={e => setRecNote(e.target.value)}
+                        className="w-full px-3 py-2.5 rounded-xl border border-[#EEEDF5] bg-[#FAFAF8] text-sm text-[#1A1A2E] placeholder:text-[#C0BFCC] focus:outline-none focus:border-[#FFB547]"
+                        onKeyDown={e => e.key === 'Enter' && handleAddRecurring()}/>
+                      <div className="flex gap-2">
+                        <button onClick={() => setAddingRec(false)} className="flex-1 py-2.5 rounded-xl bg-[#F5F5F8] text-[#9096B4] text-sm font-semibold">Cancel</button>
+                        <button onClick={handleAddRecurring} className="flex-1 py-2.5 rounded-xl text-white text-sm font-semibold" style={{ background: 'linear-gradient(135deg, #FFB547, #E09030)' }}>Log Payment</button>
+                      </div>
+                    </motion.div>
+                  ) : (
+                    <motion.button key="rec-btn" initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                      onClick={() => setAddingRec(true)}
+                      className="w-full py-3 rounded-2xl border-2 border-dashed border-[#FFE0A0] text-[#E09030] text-sm font-semibold hover:border-[#FFB547] hover:bg-[#FFFBF0] transition-colors flex items-center justify-center gap-2">
+                      <RefreshCw size={14}/> Log recurring payment
+                    </motion.button>
+                  )}
+                </AnimatePresence>
+              </motion.div>
             )}
           </AnimatePresence>
         </div>
@@ -151,8 +214,7 @@ function GoalDrawer({ goal, onClose }: { goal: Goal; onClose: () => void }) {
             <div className="space-y-2">
               {deposits.map((d, i) => (
                 <motion.div key={d.id}
-                  initial={{ opacity: 0, x: -12 }}
-                  animate={{ opacity: 1, x: 0 }}
+                  initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: i * 0.04 }}
                   className="flex items-center gap-3 py-2.5 border-b border-[#F5F5F8] last:border-0">
                   <div className="w-1.5 h-1.5 rounded-full bg-[#7B61FF] shrink-0 mt-0.5"/>
@@ -179,11 +241,9 @@ function GoalCard({ goal, onClick }: { goal: Goal; onClick: () => void }) {
 
   return (
     <motion.div
-      whileHover={{ scale: 1.02, y: -2 }}
-      whileTap={{ scale: 0.98 }}
+      whileHover={{ scale: 1.02, y: -2 }} whileTap={{ scale: 0.98 }}
       onClick={onClick}
-      className="bg-white rounded-3xl p-5 border border-[#EEEDF5] shadow-sm cursor-pointer flex flex-col items-center gap-3 relative overflow-hidden"
-    >
+      className="bg-white rounded-3xl p-5 border border-[#EEEDF5] shadow-sm cursor-pointer flex flex-col items-center gap-3 relative overflow-hidden">
       {pct >= 100 && (
         <div className="absolute top-3 right-3 w-6 h-6 rounded-full bg-[#E8FBF6] flex items-center justify-center">
           <span className="text-xs">✓</span>
@@ -206,7 +266,7 @@ function GoalCard({ goal, onClick }: { goal: Goal; onClick: () => void }) {
 
 /* ── Page ────────────────────────────────────────────────────── */
 export default function GoalsPage() {
-  const { goals, updateGoal } = useStore();
+  const { goals } = useStore();
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Goal | undefined>();
   const [selectedGoal, setSelectedGoal] = useState<Goal | undefined>();
@@ -216,23 +276,19 @@ export default function GoalsPage() {
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 pb-28 space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-black text-[#1A1A2E]">Goals 🎯</h1>
           <p className="text-sm text-[#9096B4]">{active.length} active · {achieved.length} achieved</p>
         </div>
-        <motion.button
-          whileTap={{ scale: 0.95 }}
+        <motion.button whileTap={{ scale: 0.95 }}
           onClick={() => setFormOpen(true)}
           className="flex items-center gap-1.5 px-4 py-2.5 rounded-2xl text-white text-sm font-bold shadow-lg"
-          style={{ background: 'linear-gradient(135deg, #7B61FF, #5B41CF)' }}
-        >
+          style={{ background: 'linear-gradient(135deg, #7B61FF, #5B41CF)' }}>
           <Plus size={15}/> New Goal
         </motion.button>
       </div>
 
-      {/* Active goals grid */}
       {active.length === 0 ? (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
           className="bg-white rounded-3xl border border-[#EEEDF5] p-16 text-center">
@@ -243,8 +299,7 @@ export default function GoalsPage() {
         <div className="grid grid-cols-2 gap-4">
           {active.map((goal, i) => (
             <motion.div key={goal.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
+              initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.08, ease: [0.16, 1, 0.3, 1] }}>
               <GoalCard goal={goal} onClick={() => setSelectedGoal(goal)}/>
             </motion.div>
@@ -252,7 +307,6 @@ export default function GoalsPage() {
         </div>
       )}
 
-      {/* Achieved */}
       {achieved.length > 0 && (
         <div>
           <p className="text-xs font-bold uppercase tracking-widest text-[#9096B4] mb-3">Achieved 🏆</p>
@@ -277,8 +331,7 @@ export default function GoalsPage() {
         {selectedGoal && (
           <GoalDrawer
             goal={goals.find(g => g.id === selectedGoal.id) || selectedGoal}
-            onClose={() => setSelectedGoal(undefined)}
-          />
+            onClose={() => setSelectedGoal(undefined)}/>
         )}
       </AnimatePresence>
     </div>

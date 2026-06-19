@@ -464,8 +464,6 @@ export default function DashboardPage() {
       </div>
 
       <FlowBar income={monthIncome} expenses={monthExpenses}/>
-      <SpendingRings />
-      <GoalStrip />
       <RecentActivity />
 
       {/* Modals */}
