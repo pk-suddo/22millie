@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { getMonthKey } from '@/lib/utils';
-import type { Income, Expense, Goal, GoalDeposit, UserProfile, CustomCategory } from '@/lib/db';
+import type { Income, Expense, Goal, GoalDeposit, UserProfile, CustomCategory, BorrowLend } from '@/lib/db';
 
 interface DB {
   income: Income[];
@@ -8,6 +8,7 @@ interface DB {
   goals: Goal[];
   goalDeposits: GoalDeposit[];
   customCategories: CustomCategory[];
+  borrowLends: BorrowLend[];
   profile: UserProfile;
   _nextId: Record<string, number>;
 }
@@ -31,6 +32,7 @@ interface FinanceState {
   goals: Goal[];
   goalDeposits: GoalDeposit[];
   customCategories: CustomCategory[];
+  borrowLends: BorrowLend[];
   profile: UserProfile | null;
   selectedMonth: string;
   isLoading: boolean;
@@ -56,6 +58,11 @@ interface FinanceState {
   addCategory: (cat: CustomCategory) => Promise<void>;
   removeCategory: (value: string) => Promise<void>;
 
+  addBorrowLend: (entry: Omit<BorrowLend, 'id' | 'createdAt'>) => Promise<void>;
+  updateBorrowLend: (id: number, updates: Partial<BorrowLend>) => Promise<void>;
+  deleteBorrowLend: (id: number) => Promise<void>;
+  logBLPayment: (id: number, amount: number) => Promise<void>;
+
   updateProfile: (profile: Partial<UserProfile>) => Promise<void>;
   exportData: () => void;
 }
@@ -66,6 +73,7 @@ export const useStore = create<FinanceState>((set, get) => ({
   goals: [],
   goalDeposits: [],
   customCategories: [],
+  borrowLends: [],
   profile: null,
   selectedMonth: getMonthKey(),
   isLoading: true,
@@ -80,6 +88,7 @@ export const useStore = create<FinanceState>((set, get) => ({
       goals: db.goals ?? [],
       goalDeposits: db.goalDeposits ?? [],
       customCategories: db.customCategories ?? [],
+      borrowLends: db.borrowLends ?? [],
       profile: db.profile ?? null,
       isLoading: false,
     });
@@ -161,7 +170,7 @@ export const useStore = create<FinanceState>((set, get) => ({
   addGoalDeposit: async (goalId, amount, note) => {
     const db = await load();
     const id = (db._nextId.goalDeposits ?? 1);
-    db.goalDeposits.push({ id, goalId, amount, date: new Date().toISOString().split('T')[0], note });
+    db.goalDeposits.push({ id, goalId, amount, date: new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kathmandu' }), note });
     db._nextId.goalDeposits = id + 1;
     const goal = db.goals.find(g => g.id === goalId);
     if (goal) goal.currentSaved += amount;
@@ -183,6 +192,42 @@ export const useStore = create<FinanceState>((set, get) => ({
     const db = await load();
     if (!db.customCategories) db.customCategories = [];
     db.customCategories = db.customCategories.filter(c => c.value !== value);
+    await save(db);
+    await get().loadAll();
+  },
+
+  addBorrowLend: async (entry) => {
+    const db = await load();
+    if (!db.borrowLends) db.borrowLends = [];
+    const id = db._nextId.borrowLends ?? 1;
+    db.borrowLends.push({ ...entry, id, createdAt: new Date().toISOString() });
+    db._nextId.borrowLends = id + 1;
+    await save(db);
+    await get().loadAll();
+  },
+
+  updateBorrowLend: async (id, updates) => {
+    const db = await load();
+    if (!db.borrowLends) db.borrowLends = [];
+    db.borrowLends = db.borrowLends.map(b => b.id === id ? { ...b, ...updates } : b);
+    await save(db);
+    await get().loadAll();
+  },
+
+  deleteBorrowLend: async (id) => {
+    const db = await load();
+    if (!db.borrowLends) db.borrowLends = [];
+    db.borrowLends = db.borrowLends.filter(b => b.id !== id);
+    await save(db);
+    await get().loadAll();
+  },
+
+  logBLPayment: async (id, amount) => {
+    const db = await load();
+    if (!db.borrowLends) db.borrowLends = [];
+    db.borrowLends = db.borrowLends.map(b =>
+      b.id === id ? { ...b, paidAmount: Math.min(b.paidAmount + amount, b.totalAmount) } : b
+    );
     await save(db);
     await get().loadAll();
   },

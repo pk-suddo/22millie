@@ -47,6 +47,18 @@ export interface CustomCategory {
   color: string;
 }
 
+export interface BorrowLend {
+  id?: number;
+  name: string;
+  direction: 'borrowed' | 'lent';
+  totalAmount: number;
+  paidAmount: number;
+  monthlyPayment: number;
+  startDate: string;
+  note?: string;
+  createdAt: string;
+}
+
 export interface AIInsight {
   id?: number;
   text: string;

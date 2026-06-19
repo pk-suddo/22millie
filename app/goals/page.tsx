@@ -2,12 +2,12 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useStore } from '@/store/useStore';
-import { formatCurrency, formatDateShort, monthlySavingsNeeded, monthsUntil, EXPENSE_CATEGORIES } from '@/lib/utils';
+import { formatCurrency, formatDateShort, monthlySavingsNeeded, monthsUntil, EXPENSE_CATEGORIES, getLocalToday } from '@/lib/utils';
 import { GoalForm } from '@/components/goals/GoalForm';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/toast';
-import { Plus, X, Trash2, Check, RefreshCw } from 'lucide-react';
-import type { Goal } from '@/lib/db';
+import { Plus, X, Trash2, Check, RefreshCw, ArrowDownLeft, ArrowUpRight } from 'lucide-react';
+import type { Goal, BorrowLend } from '@/lib/db';
 
 /* ── Progress Ring ─────────────────────────────────────────── */
 function Ring({ pct, size = 80, color = '#7B61FF' }: { pct: number; size?: number; color?: string }) {
@@ -28,6 +28,283 @@ function Ring({ pct, size = 80, color = '#7B61FF' }: { pct: number; size?: numbe
   );
 }
 
+/* ── Borrow & Lend Drawer ───────────────────────────────────── */
+function BorrowLendDrawer({ onClose }: { onClose: () => void }) {
+  const { borrowLends, addBorrowLend, deleteBorrowLend, logBLPayment } = useStore();
+  const { toast } = useToast();
+  const currency = useStore(s => s.profile?.currency) || 'NPR';
+
+  const [adding, setAdding] = useState(false);
+  const [payingId, setPayingId] = useState<number | null>(null);
+  const [payAmt, setPayAmt] = useState('');
+  const [form, setForm] = useState({
+    name: '',
+    direction: 'borrowed' as 'borrowed' | 'lent',
+    totalAmount: '',
+    monthlyPayment: '',
+    startDate: getLocalToday(),
+    note: '',
+  });
+
+  const active = borrowLends.filter(b => b.paidAmount < b.totalAmount);
+  const settled = borrowLends.filter(b => b.paidAmount >= b.totalAmount);
+
+  const handleAdd = async () => {
+    if (!form.name.trim() || !form.totalAmount) return;
+    await addBorrowLend({
+      name: form.name.trim(),
+      direction: form.direction,
+      totalAmount: parseFloat(form.totalAmount),
+      paidAmount: 0,
+      monthlyPayment: parseFloat(form.monthlyPayment) || 0,
+      startDate: form.startDate,
+      note: form.note,
+    });
+    toast(`${form.direction === 'borrowed' ? 'Borrowed' : 'Lent'} from ${form.name} recorded`);
+    setForm({ name: '', direction: 'borrowed', totalAmount: '', monthlyPayment: '', startDate: getLocalToday(), note: '' });
+    setAdding(false);
+  };
+
+  const handleLogPayment = async (id: number) => {
+    const n = parseFloat(payAmt);
+    if (!n || n <= 0) return;
+    await logBLPayment(id, n);
+    toast(`Payment of ${formatCurrency(n, currency)} logged`);
+    setPayingId(null);
+    setPayAmt('');
+  };
+
+  const monthsLeft = (b: BorrowLend) => {
+    const remaining = b.totalAmount - b.paidAmount;
+    if (b.monthlyPayment <= 0 || remaining <= 0) return null;
+    return Math.ceil(remaining / b.monthlyPayment);
+  };
+
+  return (
+    <motion.div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+      <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose}/>
+      <motion.div
+        className="relative bg-white w-full max-w-lg rounded-t-3xl sm:rounded-3xl overflow-hidden max-h-[92vh] flex flex-col"
+        initial={{ y: 60, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        exit={{ y: 60, opacity: 0 }}
+        transition={{ type: 'spring', damping: 28, stiffness: 300 }}>
+
+        {/* Header */}
+        <div className="px-6 pt-6 pb-4 border-b border-[#F5F5F8]">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-bold text-[#1A1A2E]">Borrow & Lend 💸</h2>
+              <p className="text-sm text-[#9096B4]">Track money you owe or are owed</p>
+            </div>
+            <div className="flex gap-2">
+              <motion.button whileTap={{ scale: 0.95 }}
+                onClick={() => setAdding(true)}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-white text-sm font-bold"
+                style={{ background: 'linear-gradient(135deg, #7B61FF, #5B41CF)' }}>
+                <Plus size={14}/> Add
+              </motion.button>
+              <button onClick={onClose} className="p-2 rounded-xl bg-[#F5F5F8] text-[#9096B4]"><X size={16}/></button>
+            </div>
+          </div>
+
+          {/* Summary pills */}
+          {borrowLends.length > 0 && (
+            <div className="flex gap-2 mt-3">
+              {(() => {
+                const totalBorrowed = borrowLends.filter(b => b.direction === 'borrowed').reduce((s, b) => s + (b.totalAmount - b.paidAmount), 0);
+                const totalLent = borrowLends.filter(b => b.direction === 'lent').reduce((s, b) => s + (b.totalAmount - b.paidAmount), 0);
+                return (
+                  <>
+                    {totalBorrowed > 0 && (
+                      <span className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-[#FFF0EE] text-[#FF6152] text-xs font-semibold">
+                        <ArrowDownLeft size={11}/> Owe {formatCurrency(totalBorrowed, currency)}
+                      </span>
+                    )}
+                    {totalLent > 0 && (
+                      <span className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-[#E8FBF6] text-[#00C896] text-xs font-semibold">
+                        <ArrowUpRight size={11}/> Owed {formatCurrency(totalLent, currency)}
+                      </span>
+                    )}
+                  </>
+                );
+              })()}
+            </div>
+          )}
+        </div>
+
+        {/* Add form */}
+        <AnimatePresence>
+          {adding && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+              className="border-b border-[#F5F5F8] overflow-hidden">
+              <div className="px-6 py-4 space-y-3">
+                <p className="text-xs font-bold uppercase tracking-widest text-[#9096B4]">New Entry</p>
+
+                {/* Direction toggle */}
+                <div className="flex gap-2">
+                  {(['borrowed', 'lent'] as const).map(dir => (
+                    <button key={dir} type="button"
+                      onClick={() => setForm(f => ({ ...f, direction: dir }))}
+                      className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold border transition-all ${
+                        form.direction === dir
+                          ? dir === 'borrowed'
+                            ? 'bg-[#FFF0EE] border-[#FF6152] text-[#FF6152]'
+                            : 'bg-[#E8FBF6] border-[#00C896] text-[#00C896]'
+                          : 'bg-white border-[#E8E5E0] text-[#9096B4]'
+                      }`}>
+                      {dir === 'borrowed' ? <><ArrowDownLeft size={14}/> I Borrowed</> : <><ArrowUpRight size={14}/> I Lent</>}
+                    </button>
+                  ))}
+                </div>
+
+                <Input label="Person / Place" placeholder="e.g. Aarav, Bank, Rohan"
+                  value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+
+                <div className="grid grid-cols-2 gap-2">
+                  <Input label="Total Amount" type="number" placeholder="0"
+                    value={form.totalAmount} onChange={e => setForm(f => ({ ...f, totalAmount: e.target.value }))} />
+                  <Input label="Monthly Repayment" type="number" placeholder="0 (optional)"
+                    value={form.monthlyPayment} onChange={e => setForm(f => ({ ...f, monthlyPayment: e.target.value }))} />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <Input label="Start Date" type="date"
+                    value={form.startDate} onChange={e => setForm(f => ({ ...f, startDate: e.target.value }))} />
+                  <Input label="Note" placeholder="Optional"
+                    value={form.note} onChange={e => setForm(f => ({ ...f, note: e.target.value }))} />
+                </div>
+
+                <div className="flex gap-2">
+                  <button onClick={() => setAdding(false)}
+                    className="flex-1 py-2.5 rounded-xl bg-[#F5F5F8] text-[#9096B4] text-sm font-semibold">Cancel</button>
+                  <button onClick={handleAdd}
+                    className="flex-1 py-2.5 rounded-xl text-white text-sm font-semibold"
+                    style={{ background: 'linear-gradient(135deg, #7B61FF, #5B41CF)' }}>Save</button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* List */}
+        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
+          {borrowLends.length === 0 && !adding && (
+            <div className="text-center py-14">
+              <p className="text-4xl mb-3">💸</p>
+              <p className="text-sm text-[#9096B4]">No entries yet</p>
+              <p className="text-xs text-[#C0BFCC] mt-1">Track money you borrowed or lent</p>
+            </div>
+          )}
+
+          {active.map((b, i) => {
+            const remaining = b.totalAmount - b.paidAmount;
+            const pct = (b.paidAmount / b.totalAmount) * 100;
+            const ml = monthsLeft(b);
+            const isBorrowed = b.direction === 'borrowed';
+
+            return (
+              <motion.div key={b.id}
+                initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.05 }}
+                className="bg-[#FAFAF8] rounded-2xl p-4 border border-[#F0EDE8]">
+
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-base ${isBorrowed ? 'bg-[#FFF0EE]' : 'bg-[#E8FBF6]'}`}>
+                      {isBorrowed ? '⬇️' : '⬆️'}
+                    </div>
+                    <div>
+                      <p className="font-bold text-[#1A1A2E] text-sm">{b.name}</p>
+                      <p className={`text-xs font-semibold ${isBorrowed ? 'text-[#FF6152]' : 'text-[#00C896]'}`}>
+                        {isBorrowed ? 'I borrowed' : 'I lent'} · {formatDateShort(b.startDate)}
+                      </p>
+                    </div>
+                  </div>
+                  <button onClick={async () => { if (confirm('Remove this entry?')) await deleteBorrowLend(b.id!); }}
+                    className="p-1.5 rounded-lg hover:bg-[#FFF0EE] text-[#C0BFCC] hover:text-[#FF6152] transition-colors">
+                    <Trash2 size={13}/>
+                  </button>
+                </div>
+
+                {/* Progress bar */}
+                <div className="mb-2">
+                  <div className="flex justify-between text-xs mb-1.5">
+                    <span className="text-[#9096B4]">Paid {formatCurrency(b.paidAmount, currency)}</span>
+                    <span className="font-semibold text-[#1A1A2E]">{formatCurrency(remaining, currency)} left</span>
+                  </div>
+                  <div className="h-2 bg-[#F0EDE8] rounded-full overflow-hidden">
+                    <motion.div className="h-full rounded-full"
+                      style={{ backgroundColor: isBorrowed ? '#FF6152' : '#00C896' }}
+                      initial={{ width: 0 }}
+                      animate={{ width: `${pct}%` }}
+                      transition={{ duration: 0.8, ease: 'easeOut' }}/>
+                  </div>
+                </div>
+
+                {/* Footer info + log payment */}
+                <div className="flex items-center justify-between mt-2.5">
+                  <div className="flex gap-3 text-xs text-[#9096B4]">
+                    {b.monthlyPayment > 0 && (
+                      <span>{formatCurrency(b.monthlyPayment, currency)}/mo</span>
+                    )}
+                    {ml !== null && (
+                      <span>~{ml} month{ml !== 1 ? 's' : ''} left</span>
+                    )}
+                    {b.note && <span className="italic truncate max-w-[100px]">{b.note}</span>}
+                  </div>
+
+                  {payingId === b.id ? (
+                    <div className="flex items-center gap-1.5">
+                      <input type="number" placeholder="Amount" value={payAmt}
+                        onChange={e => setPayAmt(e.target.value)}
+                        className="w-24 px-2 py-1 rounded-lg border border-[#EEEDF5] text-xs text-[#1A1A2E] focus:outline-none focus:border-[#7B61FF]"
+                        autoFocus onKeyDown={e => e.key === 'Enter' && handleLogPayment(b.id!)}/>
+                      <button onClick={() => handleLogPayment(b.id!)}
+                        className="px-2.5 py-1 rounded-lg text-white text-xs font-semibold"
+                        style={{ background: '#7B61FF' }}>✓</button>
+                      <button onClick={() => { setPayingId(null); setPayAmt(''); }}
+                        className="px-2 py-1 rounded-lg bg-[#F5F5F8] text-[#9096B4] text-xs">✕</button>
+                    </div>
+                  ) : (
+                    <button onClick={() => { setPayingId(b.id!); setPayAmt(b.monthlyPayment > 0 ? b.monthlyPayment.toString() : ''); }}
+                      className={`flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                        isBorrowed ? 'bg-[#FFF0EE] text-[#FF6152] hover:bg-[#FFE0DC]' : 'bg-[#E8FBF6] text-[#00C896] hover:bg-[#C0F5E8]'
+                      }`}>
+                      <Check size={11}/> Log payment
+                    </button>
+                  )}
+                </div>
+              </motion.div>
+            );
+          })}
+
+          {settled.length > 0 && (
+            <div>
+              <p className="text-xs font-bold uppercase tracking-widest text-[#9096B4] mb-2 mt-2">Settled ✓</p>
+              {settled.map(b => (
+                <div key={b.id} className="flex items-center gap-3 py-2.5 border-b border-[#F5F5F8] last:border-0 opacity-50">
+                  <span className="text-base">{b.direction === 'borrowed' ? '⬇️' : '⬆️'}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-[#1A1A2E] line-through truncate">{b.name}</p>
+                  </div>
+                  <span className="text-xs text-[#9096B4]">{formatCurrency(b.totalAmount, currency)}</span>
+                  <button onClick={() => deleteBorrowLend(b.id!)}
+                    className="text-[#C0BFCC] hover:text-[#FF6152] transition-colors">
+                    <X size={13}/>
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
 /* ── Goal Detail Drawer ─────────────────────────────────────── */
 function GoalDrawer({ goal, onClose }: { goal: Goal; onClose: () => void }) {
   const { goalDeposits, addGoalDeposit, updateGoal, deleteGoal, addExpense } = useStore();
@@ -39,7 +316,6 @@ function GoalDrawer({ goal, onClose }: { goal: Goal; onClose: () => void }) {
   const [note, setNote] = useState('');
   const [adding, setAdding] = useState(false);
 
-  // Recurring form
   const [recAmount, setRecAmount] = useState('');
   const [recCategory, setRecCategory] = useState('Other');
   const [recNote, setRecNote] = useState('');
@@ -63,11 +339,10 @@ function GoalDrawer({ goal, onClose }: { goal: Goal; onClose: () => void }) {
   const handleAddRecurring = async () => {
     const n = parseFloat(recAmount);
     if (!n || n <= 0) return;
-    const today = new Date().toISOString().split('T')[0];
     await addExpense({
       amount: n,
       category: recCategory,
-      date: today,
+      date: getLocalToday(),
       note: recNote || `${goal.name} — recurring`,
       tags: ['recurring'],
     });
@@ -86,7 +361,6 @@ function GoalDrawer({ goal, onClose }: { goal: Goal; onClose: () => void }) {
         exit={{ y: 60, opacity: 0 }}
         transition={{ type: 'spring', damping: 28, stiffness: 300 }}>
 
-        {/* Header */}
         <div className="px-6 pt-6 pb-4 border-b border-[#F5F5F8]">
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-4">
@@ -110,7 +384,6 @@ function GoalDrawer({ goal, onClose }: { goal: Goal; onClose: () => void }) {
             </div>
           </div>
 
-          {/* Stats row */}
           <div className="grid grid-cols-3 gap-3 mt-4">
             {[
               { label: 'Saved', value: formatCurrency(goal.currentSaved, currency) },
@@ -125,7 +398,6 @@ function GoalDrawer({ goal, onClose }: { goal: Goal; onClose: () => void }) {
           </div>
         </div>
 
-        {/* Tab switcher */}
         <div className="flex gap-1 px-6 pt-4 pb-0">
           <button onClick={() => setTab('deposit')}
             className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all ${tab === 'deposit' ? 'text-white' : 'text-[#9096B4] hover:bg-[#F5F5F8]'}`}
@@ -139,7 +411,6 @@ function GoalDrawer({ goal, onClose }: { goal: Goal; onClose: () => void }) {
           </button>
         </div>
 
-        {/* Tab content */}
         <div className="px-6 py-4 border-b border-[#F5F5F8]">
           <AnimatePresence mode="wait">
             {tab === 'deposit' ? (
@@ -171,7 +442,7 @@ function GoalDrawer({ goal, onClose }: { goal: Goal; onClose: () => void }) {
               </motion.div>
             ) : (
               <motion.div key="recurring" initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }}>
-                <p className="text-xs text-[#9096B4] mb-3">Log a recurring payment for this goal — it will appear in Expenses with a 🔄 tag and count in your Recurring total.</p>
+                <p className="text-xs text-[#9096B4] mb-3">Log a recurring payment for this goal — it will appear in Expenses with a 🔄 tag.</p>
                 <AnimatePresence mode="wait">
                   {addingRec ? (
                     <motion.div key="rec-form" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-2">
@@ -205,7 +476,6 @@ function GoalDrawer({ goal, onClose }: { goal: Goal; onClose: () => void }) {
           </AnimatePresence>
         </div>
 
-        {/* Deposit history */}
         <div className="flex-1 overflow-y-auto px-6 py-4">
           <p className="text-xs font-bold uppercase tracking-widest text-[#9096B4] mb-3">Deposit History</p>
           {deposits.length === 0 ? (
@@ -264,12 +534,68 @@ function GoalCard({ goal, onClick }: { goal: Goal; onClick: () => void }) {
   );
 }
 
+/* ── Borrow & Lend Summary Card ─────────────────────────────── */
+function BorrowLendCard({ onClick }: { onClick: () => void }) {
+  const { borrowLends } = useStore();
+  const currency = useStore(s => s.profile?.currency) || 'NPR';
+
+  const totalOwed = borrowLends.filter(b => b.direction === 'borrowed').reduce((s, b) => s + Math.max(b.totalAmount - b.paidAmount, 0), 0);
+  const totalOwedToMe = borrowLends.filter(b => b.direction === 'lent').reduce((s, b) => s + Math.max(b.totalAmount - b.paidAmount, 0), 0);
+  const active = borrowLends.filter(b => b.paidAmount < b.totalAmount);
+
+  return (
+    <motion.div
+      whileHover={{ scale: 1.02, y: -2 }} whileTap={{ scale: 0.98 }}
+      onClick={onClick}
+      className="col-span-2 bg-white rounded-3xl p-5 border border-[#EEEDF5] shadow-sm cursor-pointer relative overflow-hidden"
+      style={{ background: 'linear-gradient(135deg, #1A1A2E 0%, #16213E 100%)' }}>
+
+      <div className="absolute -top-8 -right-8 w-32 h-32 rounded-full opacity-10" style={{ background: 'radial-gradient(circle, #7B61FF, transparent)' }}/>
+
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-widest text-white/40 mb-0.5">Borrow & Lend</p>
+          <p className="text-white font-bold text-base">💸 {active.length} active {active.length === 1 ? 'entry' : 'entries'}</p>
+        </div>
+        <div className="w-10 h-10 rounded-2xl bg-white/10 flex items-center justify-center text-xl">💸</div>
+      </div>
+
+      <div className="flex gap-3">
+        {totalOwed > 0 && (
+          <div className="flex-1 bg-[#FF6152]/20 rounded-2xl p-3">
+            <div className="flex items-center gap-1 mb-1">
+              <ArrowDownLeft size={11} className="text-[#FF8C73]"/>
+              <span className="text-[10px] font-bold text-[#FF8C73] uppercase tracking-wide">I Owe</span>
+            </div>
+            <p className="text-white font-bold text-sm">{formatCurrency(totalOwed, currency)}</p>
+          </div>
+        )}
+        {totalOwedToMe > 0 && (
+          <div className="flex-1 bg-[#00C896]/20 rounded-2xl p-3">
+            <div className="flex items-center gap-1 mb-1">
+              <ArrowUpRight size={11} className="text-[#00E5B0]"/>
+              <span className="text-[10px] font-bold text-[#00E5B0] uppercase tracking-wide">Owed to Me</span>
+            </div>
+            <p className="text-white font-bold text-sm">{formatCurrency(totalOwedToMe, currency)}</p>
+          </div>
+        )}
+        {active.length === 0 && (
+          <div className="flex-1 text-center py-1">
+            <p className="text-white/40 text-sm">Tap to track borrowing & lending</p>
+          </div>
+        )}
+      </div>
+    </motion.div>
+  );
+}
+
 /* ── Page ────────────────────────────────────────────────────── */
 export default function GoalsPage() {
   const { goals } = useStore();
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Goal | undefined>();
   const [selectedGoal, setSelectedGoal] = useState<Goal | undefined>();
+  const [blOpen, setBlOpen] = useState(false);
 
   const active   = goals.filter(g => !g.achieved);
   const achieved = goals.filter(g => g.achieved);
@@ -289,22 +615,28 @@ export default function GoalsPage() {
         </motion.button>
       </div>
 
-      {active.length === 0 ? (
+      {/* Grid: goals + borrow/lend card */}
+      <div className="grid grid-cols-2 gap-4">
+        {active.map((goal, i) => (
+          <motion.div key={goal.id}
+            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.08, ease: [0.16, 1, 0.3, 1] }}>
+            <GoalCard goal={goal} onClick={() => setSelectedGoal(goal)}/>
+          </motion.div>
+        ))}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: active.length * 0.08, ease: [0.16, 1, 0.3, 1] }}>
+          <BorrowLendCard onClick={() => setBlOpen(true)}/>
+        </motion.div>
+      </div>
+
+      {active.length === 0 && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-          className="bg-white rounded-3xl border border-[#EEEDF5] p-16 text-center">
+          className="bg-white rounded-3xl border border-[#EEEDF5] p-12 text-center">
           <p className="text-5xl mb-3">🎯</p>
           <p className="text-[#9096B4] text-sm">Set your first goal</p>
         </motion.div>
-      ) : (
-        <div className="grid grid-cols-2 gap-4">
-          {active.map((goal, i) => (
-            <motion.div key={goal.id}
-              initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.08, ease: [0.16, 1, 0.3, 1] }}>
-              <GoalCard goal={goal} onClick={() => setSelectedGoal(goal)}/>
-            </motion.div>
-          ))}
-        </div>
       )}
 
       {achieved.length > 0 && (
@@ -333,6 +665,10 @@ export default function GoalsPage() {
             goal={goals.find(g => g.id === selectedGoal.id) || selectedGoal}
             onClose={() => setSelectedGoal(undefined)}/>
         )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {blOpen && <BorrowLendDrawer onClose={() => setBlOpen(false)}/>}
       </AnimatePresence>
     </div>
   );

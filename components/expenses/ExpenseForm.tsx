@@ -37,7 +37,6 @@ export function ExpenseForm({ open, onClose, editing }: Props) {
   const [showAddCat, setShowAddCat] = useState(false);
   const [newCat, setNewCat] = useState({ label: '', icon: '🏷️', color: '#9096B4' });
 
-  // Sync when editing prop changes
   useEffect(() => {
     if (open) {
       setForm({
@@ -80,6 +79,14 @@ export function ExpenseForm({ open, onClose, editing }: Props) {
     setNewCat({ label: '', icon: '🏷️', color: '#9096B4' });
     setShowAddCat(false);
     toast('Category added');
+  };
+
+  const handleRemoveCategory = async (e: React.MouseEvent, value: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    await removeCategory(value);
+    if (form.category === value) setForm(f => ({ ...f, category: 'Food' }));
+    toast('Category removed');
   };
 
   return (
@@ -150,41 +157,37 @@ export function ExpenseForm({ open, onClose, editing }: Props) {
             </div>
           )}
 
-          {/* Category grid */}
+          {/* Category grid — custom categories have inline ✕ */}
           <div className="grid grid-cols-3 gap-2">
             {allCategories.map(cat => {
               const isCustom = customCategories.some(c => c.value === cat.value);
               const isSelected = form.category === cat.value;
               return (
-                <div key={cat.value} className="relative">
-                  <button
-                    type="button"
-                    onClick={() => setForm({ ...form, category: cat.value })}
-                    className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium transition-all border ${
-                      isSelected
-                        ? 'text-white border-transparent shadow-md'
-                        : 'bg-white text-[#4A4A6A] border-[#E8E5E0] hover:border-[#C8C5FF] hover:bg-[#F8F7FF]'
-                    }`}
-                    style={isSelected ? { background: 'linear-gradient(135deg, #7B61FF, #5B41CF)' } : {}}
-                  >
-                    <span className="text-base shrink-0">{cat.icon}</span>
-                    <span className="truncate text-xs">{cat.label}</span>
-                  </button>
+                <button
+                  key={cat.value}
+                  type="button"
+                  onClick={() => setForm({ ...form, category: cat.value })}
+                  className={`flex items-center gap-1.5 px-2.5 py-2.5 rounded-xl text-sm font-medium transition-all border ${
+                    isSelected
+                      ? 'text-white border-transparent shadow-md'
+                      : 'bg-white text-[#4A4A6A] border-[#E8E5E0] hover:border-[#C8C5FF] hover:bg-[#F8F7FF]'
+                  }`}
+                  style={isSelected ? { background: 'linear-gradient(135deg, #7B61FF, #5B41CF)' } : {}}
+                >
+                  <span className="text-base shrink-0">{cat.icon}</span>
+                  <span className="truncate text-xs flex-1 text-left">{cat.label}</span>
                   {isCustom && (
-                    <button
-                      type="button"
-                      onClick={async (e) => {
-                        e.stopPropagation();
-                        await removeCategory(cat.value);
-                        if (form.category === cat.value) setForm(f => ({ ...f, category: 'Food' }));
-                        toast('Category removed');
-                      }}
-                      className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-[#FF6152] text-white rounded-full text-[9px] flex items-center justify-center hover:bg-[#E84545] shadow-sm z-10"
+                    <span
+                      role="button"
+                      onClick={(e) => handleRemoveCategory(e, cat.value)}
+                      className={`shrink-0 w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold ml-auto transition-colors ${
+                        isSelected ? 'bg-white/30 hover:bg-white/50 text-white' : 'bg-[#FF6152]/20 hover:bg-[#FF6152] text-[#FF6152] hover:text-white'
+                      }`}
                     >
                       ✕
-                    </button>
+                    </span>
                   )}
-                </div>
+                </button>
               );
             })}
           </div>
@@ -205,7 +208,7 @@ export function ExpenseForm({ open, onClose, editing }: Props) {
             <p className="text-sm font-semibold">Mark as Recurring</p>
             <p className="text-xs opacity-60">Fixed payment that repeats (rent, subscription, etc.)</p>
           </div>
-          <div className={`w-10 h-5 rounded-full transition-all relative ${form.recurring ? 'bg-[#FFB547]' : 'bg-[#E8E5E0]'}`}>
+          <div className={`w-10 h-5 rounded-full transition-all relative shrink-0 ${form.recurring ? 'bg-[#FFB547]' : 'bg-[#E8E5E0]'}`}>
             <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${form.recurring ? 'left-5' : 'left-0.5'}`}/>
           </div>
         </button>

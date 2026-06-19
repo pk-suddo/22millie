@@ -92,7 +92,7 @@ export const INCOME_SOURCES = [
 ];
 
 export function getLocalToday(): string {
-  return new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD in local timezone
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kathmandu' });
 }
 
 export const CATEGORY_COLORS: Record<string, string> = {
