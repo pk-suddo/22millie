@@ -93,6 +93,41 @@ function MetricTile({ label, value, icon, gradient, delay }: { label: string; va
   );
 }
 
+/* ── Recurring Tile ─────────────────────────────────────────── */
+function RecurringTile({ delay }: { delay: number }) {
+  const { income, expenses } = useStore();
+  const currency = useStore(s => s.profile?.currency) || 'NPR';
+
+  const recurringIncome = income
+    .filter(i => i.frequency === 'monthly' || i.frequency === 'weekly')
+    .reduce((s, i) => s + i.amount, 0);
+  const recurringExpenses = expenses
+    .filter(e => e.tags?.includes('recurring'))
+    .reduce((s, e) => s + e.amount, 0);
+  const total = recurringIncome + recurringExpenses;
+  const count = income.filter(i => i.frequency === 'monthly' || i.frequency === 'weekly').length
+    + expenses.filter(e => e.tags?.includes('recurring')).length;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, delay, ease: [0.16, 1, 0.3, 1] }}
+      className="rounded-2xl p-5 text-white relative overflow-hidden"
+      style={{ background: 'linear-gradient(135deg, #FFB547 0%, #E09030 100%)' }}
+    >
+      <div className="absolute top-3 right-3 text-2xl opacity-80">🔄</div>
+      <p className="text-xs font-bold uppercase tracking-widest text-white/50 mb-1">Recurring</p>
+      <AnimatedNumber
+        value={total}
+        formatter={(n) => formatCompact(n, currency)}
+        className="text-2xl font-bold"
+      />
+      <p className="text-[10px] text-white/50 mt-1 font-medium">{count} payments</p>
+    </motion.div>
+  );
+}
+
 /* ── Flow Bar ────────────────────────────────────────────────── */
 function FlowBar({ income, expenses }: { income: number; expenses: number }) {
   const currency = useStore(s => s.profile?.currency) || 'NPR';
@@ -425,8 +460,7 @@ export default function DashboardPage() {
           gradient="linear-gradient(135deg, #00C896 0%, #00A876 100%)" delay={0.18}/>
         <MetricTile label="Spent" value={monthExpenses} icon="💸"
           gradient="linear-gradient(135deg, #FF6152 0%, #E84545 100%)" delay={0.24}/>
-        <MetricTile label="Rate" value={`${monthIncome > 0 ? Math.round(((monthIncome - monthExpenses) / monthIncome) * 100) : 0}%`} icon="📈"
-          gradient="linear-gradient(135deg, #7B61FF 0%, #5B41CF 100%)" delay={0.30}/>
+        <RecurringTile delay={0.30}/>
       </div>
 
       <FlowBar income={monthIncome} expenses={monthExpenses}/>
