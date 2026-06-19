@@ -33,6 +33,7 @@ const DEFAULT_DATA = () => {
       { id: 3, goalId: 2, amount: 5000, date: `${m}-08`, note: 'Trip fund' },
       { id: 4, goalId: 3, amount: 25000, date: `${m}-02`, note: 'Freelance income' },
     ],
+    customCategories: [],
     _nextId: { income: 3, expenses: 8, goals: 4, goalDeposits: 5 },
   };
 };

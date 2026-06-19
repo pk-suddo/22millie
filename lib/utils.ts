@@ -91,6 +91,10 @@ export const INCOME_SOURCES = [
   'Primary Job', 'Freelance', 'Investments', 'Side Hustle', 'Gifts', 'Rental Income', 'Other',
 ];
 
+export function getLocalToday(): string {
+  return new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD in local timezone
+}
+
 export const CATEGORY_COLORS: Record<string, string> = {
   Food: '#FF6152',
   Transport: '#4A9EFF',

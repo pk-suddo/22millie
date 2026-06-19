@@ -1,12 +1,13 @@
 import { create } from 'zustand';
 import { getMonthKey } from '@/lib/utils';
-import type { Income, Expense, Goal, GoalDeposit, UserProfile } from '@/lib/db';
+import type { Income, Expense, Goal, GoalDeposit, UserProfile, CustomCategory } from '@/lib/db';
 
 interface DB {
   income: Income[];
   expenses: Expense[];
   goals: Goal[];
   goalDeposits: GoalDeposit[];
+  customCategories: CustomCategory[];
   profile: UserProfile;
   _nextId: Record<string, number>;
 }
@@ -29,6 +30,7 @@ interface FinanceState {
   expenses: Expense[];
   goals: Goal[];
   goalDeposits: GoalDeposit[];
+  customCategories: CustomCategory[];
   profile: UserProfile | null;
   selectedMonth: string;
   isLoading: boolean;
@@ -51,6 +53,9 @@ interface FinanceState {
   deleteGoal: (id: number) => Promise<void>;
   addGoalDeposit: (goalId: number, amount: number, note?: string) => Promise<void>;
 
+  addCategory: (cat: CustomCategory) => Promise<void>;
+  removeCategory: (value: string) => Promise<void>;
+
   updateProfile: (profile: Partial<UserProfile>) => Promise<void>;
   exportData: () => void;
 }
@@ -60,6 +65,7 @@ export const useStore = create<FinanceState>((set, get) => ({
   expenses: [],
   goals: [],
   goalDeposits: [],
+  customCategories: [],
   profile: null,
   selectedMonth: getMonthKey(),
   isLoading: true,
@@ -73,6 +79,7 @@ export const useStore = create<FinanceState>((set, get) => ({
       expenses: db.expenses ?? [],
       goals: db.goals ?? [],
       goalDeposits: db.goalDeposits ?? [],
+      customCategories: db.customCategories ?? [],
       profile: db.profile ?? null,
       isLoading: false,
     });
@@ -162,6 +169,24 @@ export const useStore = create<FinanceState>((set, get) => ({
     await get().loadAll();
   },
 
+  addCategory: async (cat) => {
+    const db = await load();
+    if (!db.customCategories) db.customCategories = [];
+    if (!db.customCategories.find(c => c.value === cat.value)) {
+      db.customCategories.push(cat);
+    }
+    await save(db);
+    await get().loadAll();
+  },
+
+  removeCategory: async (value) => {
+    const db = await load();
+    if (!db.customCategories) db.customCategories = [];
+    db.customCategories = db.customCategories.filter(c => c.value !== value);
+    await save(db);
+    await get().loadAll();
+  },
+
   updateProfile: async (updates) => {
     const db = await load();
     db.profile = { ...db.profile, ...updates };
@@ -176,7 +201,7 @@ export const useStore = create<FinanceState>((set, get) => ({
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `calm-finance-${new Date().toISOString().split('T')[0]}.json`;
+    a.download = `22millie-${new Date().toISOString().split('T')[0]}.json`;
     a.click();
     URL.revokeObjectURL(url);
   },

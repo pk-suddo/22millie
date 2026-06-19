@@ -2,7 +2,7 @@
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useStore } from '@/store/useStore';
-import { formatCurrency, formatCompact, getMonthKey, getMonthLabel, EXPENSE_CATEGORIES, CATEGORY_COLORS } from '@/lib/utils';
+import { formatCurrency, formatCompact, getMonthKey, getMonthLabel, getLocalToday, EXPENSE_CATEGORIES, CATEGORY_COLORS } from '@/lib/utils';
 import { AnimatedNumber } from '@/components/ui/AnimatedNumber';
 import { IncomeForm } from '@/components/income/IncomeForm';
 import { ExpenseForm } from '@/components/expenses/ExpenseForm';
@@ -33,8 +33,9 @@ function MonthNav() {
 /* ── Hero Networth Card ─────────────────────────────────────── */
 function NetworthHero() {
   const { income, expenses } = useStore();
-  const allIncome  = income.reduce((s, i) => s + i.amount, 0);
-  const allExpenses = expenses.reduce((s, e) => s + e.amount, 0);
+  const today = getLocalToday();
+  const allIncome  = income.filter(i => i.date <= today).reduce((s, i) => s + i.amount, 0);
+  const allExpenses = expenses.filter(e => e.date <= today).reduce((s, e) => s + e.amount, 0);
   const networth = allIncome - allExpenses;
   const currency = useStore(s => s.profile?.currency) || 'NPR';
 
@@ -98,15 +99,11 @@ function RecurringTile({ delay }: { delay: number }) {
   const { income, expenses } = useStore();
   const currency = useStore(s => s.profile?.currency) || 'NPR';
 
-  const recurringIncome = income
-    .filter(i => i.frequency === 'monthly' || i.frequency === 'weekly')
-    .reduce((s, i) => s + i.amount, 0);
   const recurringExpenses = expenses
     .filter(e => e.tags?.includes('recurring'))
     .reduce((s, e) => s + e.amount, 0);
-  const total = recurringIncome + recurringExpenses;
-  const count = income.filter(i => i.frequency === 'monthly' || i.frequency === 'weekly').length
-    + expenses.filter(e => e.tags?.includes('recurring')).length;
+  const total = recurringExpenses;
+  const count = expenses.filter(e => e.tags?.includes('recurring')).length;
 
   return (
     <motion.div
