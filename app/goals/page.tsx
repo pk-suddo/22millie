@@ -29,13 +29,16 @@ function Ring({ pct, size = 80, color = '#7B61FF' }: { pct: number; size?: numbe
 
 /* ── Entry Detail Drawer — mounted at page level (z-[70]) ─── */
 function BLEntryDrawer({ entry, onClose }: { entry: BorrowLend; onClose: () => void }) {
-  const { logBLPayment, deleteBorrowLend } = useStore();
+  const { logBLPayment, deleteBorrowLend, updateBLPayment, deleteBLPayment } = useStore();
   const { toast } = useToast();
   const currency = useStore(s => s.profile?.currency) || 'NPR';
 
   const [payAmt, setPayAmt] = useState(entry.monthlyPayment > 0 ? entry.monthlyPayment.toString() : '');
   const [payNote, setPayNote] = useState('');
   const [paying, setPaying] = useState(false);
+  // Per-payment inline edit state: { amount, note, date }
+  const [editingPayId, setEditingPayId] = useState<number | null>(null);
+  const [editForm, setEditForm] = useState({ amount: '', note: '', date: '' });
 
   const remaining = entry.totalAmount - entry.paidAmount;
   const pct = Math.min((entry.paidAmount / entry.totalAmount) * 100, 100);
@@ -184,20 +187,96 @@ function BLEntryDrawer({ entry, onClose }: { entry: BorrowLend; onClose: () => v
             </div>
           ) : (
             <div>
-              {payments.map((p, i) => (
+              {payments.map((p, i) => {
+                const isEditing = editingPayId === p.id;
+                return (
                 <motion.div key={p.id}
                   initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: i * 0.04 }}
-                  className="flex items-center gap-3 py-3 border-b border-[#F5F5F8] last:border-0">
-                  <div className="w-8 h-8 rounded-xl flex items-center justify-center text-sm shrink-0"
-                    style={{ backgroundColor: `${accentColor}18` }}>💸</div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-[#1A1A2E]">{formatCurrency(p.amount, currency)}</p>
-                    {p.note && <p className="text-xs text-[#9096B4] truncate">{p.note}</p>}
-                  </div>
-                  <span className="text-xs text-[#C0BFCC] shrink-0">{formatDateShort(p.date)}</span>
+                  className="border-b border-[#F5F5F8] last:border-0">
+
+                  {isEditing ? (
+                    /* ── Inline edit form ── */
+                    <div className="py-3 space-y-2">
+                      <div className="flex gap-2">
+                        <input
+                          type="number"
+                          value={editForm.amount}
+                          onChange={e => setEditForm(f => ({ ...f, amount: e.target.value }))}
+                          placeholder="Amount"
+                          className="flex-1 px-3 py-2 rounded-xl border border-[#EEEDF5] bg-[#FAFAF8] text-sm focus:outline-none focus:border-[#7B61FF]"
+                          autoFocus
+                        />
+                        <input
+                          type="date"
+                          value={editForm.date}
+                          onChange={e => setEditForm(f => ({ ...f, date: e.target.value }))}
+                          className="flex-1 px-3 py-2 rounded-xl border border-[#EEEDF5] bg-[#FAFAF8] text-sm focus:outline-none focus:border-[#7B61FF]"
+                        />
+                      </div>
+                      <input
+                        type="text"
+                        value={editForm.note}
+                        onChange={e => setEditForm(f => ({ ...f, note: e.target.value }))}
+                        placeholder="Note (optional)"
+                        className="w-full px-3 py-2 rounded-xl border border-[#EEEDF5] bg-[#FAFAF8] text-sm focus:outline-none focus:border-[#7B61FF]"
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setEditingPayId(null)}
+                          className="flex-1 py-2 rounded-xl bg-[#F5F5F8] text-[#9096B4] text-xs font-semibold">
+                          Cancel
+                        </button>
+                        <button
+                          onClick={async () => {
+                            const n = parseFloat(editForm.amount);
+                            if (!n || n <= 0) return;
+                            await updateBLPayment(entry.id!, p.id, {
+                              amount: n,
+                              date: editForm.date,
+                              note: editForm.note || undefined,
+                            });
+                            toast('Payment updated');
+                            setEditingPayId(null);
+                          }}
+                          className="flex-1 py-2 rounded-xl text-white text-xs font-semibold"
+                          style={{ background: `linear-gradient(135deg, ${accentColor}, ${isBorrowed ? '#E84545' : '#00A876'})` }}>
+                          Save
+                        </button>
+                        <button
+                          onClick={async () => {
+                            if (!window.confirm('Remove this payment?')) return;
+                            await deleteBLPayment(entry.id!, p.id);
+                            toast('Payment removed');
+                          }}
+                          className="px-3 py-2 rounded-xl bg-[#FFF0EE] text-[#FF6152] text-xs font-semibold">
+                          <Trash2 size={13}/>
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    /* ── Read row — tap to edit ── */
+                    <div
+                      className="flex items-center gap-3 py-3 cursor-pointer group"
+                      onClick={() => {
+                        setEditingPayId(p.id);
+                        setEditForm({ amount: p.amount.toString(), note: p.note || '', date: p.date });
+                      }}>
+                      <div className="w-8 h-8 rounded-xl flex items-center justify-center text-sm shrink-0"
+                        style={{ backgroundColor: `${accentColor}18` }}>💸</div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-[#1A1A2E]">{formatCurrency(p.amount, currency)}</p>
+                        {p.note && <p className="text-xs text-[#9096B4] truncate">{p.note}</p>}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-[#C0BFCC] shrink-0">{formatDateShort(p.date)}</span>
+                        <span className="text-[10px] text-[#C0BFCC] opacity-0 group-hover:opacity-100 transition-opacity">✏️</span>
+                      </div>
+                    </div>
+                  )}
                 </motion.div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
