@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { getMonthKey } from '@/lib/utils';
-import type { Income, Expense, Goal, GoalDeposit, UserProfile, CustomCategory, BorrowLend } from '@/lib/db';
+import type { Income, Expense, Goal, GoalDeposit, UserProfile, CustomCategory, BorrowLend, BLPayment } from '@/lib/db';
 
 interface DB {
   income: Income[];
@@ -61,7 +61,7 @@ interface FinanceState {
   addBorrowLend: (entry: Omit<BorrowLend, 'id' | 'createdAt'>) => Promise<void>;
   updateBorrowLend: (id: number, updates: Partial<BorrowLend>) => Promise<void>;
   deleteBorrowLend: (id: number) => Promise<void>;
-  logBLPayment: (id: number, amount: number) => Promise<void>;
+  logBLPayment: (id: number, amount: number, note?: string) => Promise<void>;
 
   updateProfile: (profile: Partial<UserProfile>) => Promise<void>;
   exportData: () => void;
@@ -200,7 +200,7 @@ export const useStore = create<FinanceState>((set, get) => ({
     const db = await load();
     if (!db.borrowLends) db.borrowLends = [];
     const id = db._nextId.borrowLends ?? 1;
-    db.borrowLends.push({ ...entry, id, createdAt: new Date().toISOString() });
+    db.borrowLends.push({ ...entry, payments: [], id, createdAt: new Date().toISOString() });
     db._nextId.borrowLends = id + 1;
     await save(db);
     await get().loadAll();
@@ -222,12 +222,24 @@ export const useStore = create<FinanceState>((set, get) => ({
     await get().loadAll();
   },
 
-  logBLPayment: async (id, amount) => {
+  logBLPayment: async (id, amount, note) => {
     const db = await load();
     if (!db.borrowLends) db.borrowLends = [];
-    db.borrowLends = db.borrowLends.map(b =>
-      b.id === id ? { ...b, paidAmount: Math.min(b.paidAmount + amount, b.totalAmount) } : b
-    );
+    db.borrowLends = db.borrowLends.map(b => {
+      if (b.id !== id) return b;
+      const payments = b.payments ?? [];
+      const newPayment: BLPayment = {
+        id: (payments.length > 0 ? Math.max(...payments.map(p => p.id)) + 1 : 1),
+        amount,
+        date: new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kathmandu' }),
+        note,
+      };
+      return {
+        ...b,
+        paidAmount: Math.min(b.paidAmount + amount, b.totalAmount),
+        payments: [...payments, newPayment],
+      };
+    });
     await save(db);
     await get().loadAll();
   },

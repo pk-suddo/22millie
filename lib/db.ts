@@ -47,6 +47,13 @@ export interface CustomCategory {
   color: string;
 }
 
+export interface BLPayment {
+  id: number;
+  amount: number;
+  date: string;
+  note?: string;
+}
+
 export interface BorrowLend {
   id?: number;
   name: string;
@@ -56,6 +63,7 @@ export interface BorrowLend {
   monthlyPayment: number;
   startDate: string;
   note?: string;
+  payments: BLPayment[];
   createdAt: string;
 }
 
