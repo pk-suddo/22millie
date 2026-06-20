@@ -46,7 +46,7 @@ export default function ExpensesPage() {
   const [selectedCat, setSelectedCat] = useState('');
   const [search, setSearch] = useState('');
   const [expandedId, setExpandedId] = useState<number | null>(null);
-  const [sort, setSort] = useState<'date-desc' | 'date-asc' | 'amount-desc' | 'amount-asc'>('date-desc');
+  const [sort, setSort] = useState<'date-desc' | 'date-asc' | 'amount-desc' | 'amount-asc' | 'category'>('date-desc');
   const [showSort, setShowSort] = useState(false);
 
   const go = (d: number) => {
@@ -87,11 +87,15 @@ export default function ExpensesPage() {
         return (a.id ?? 0) - (b.id ?? 0);
       }
       if (sort === 'amount-desc') return b.amount - a.amount;
-      return a.amount - b.amount;
+      if (sort === 'amount-asc') return a.amount - b.amount;
+      // category: sort alphabetically by category then by date desc within
+      const catDiff = a.category.localeCompare(b.category);
+      if (catDiff !== 0) return catDiff;
+      return b.date.localeCompare(a.date);
     });
   }, [monthExp, search, selectedCat, sort]);
 
-  // Group by date for the list view
+  // Group by date for date sorts
   const groupedByDate = useMemo(() => {
     const groups: { date: string; items: typeof filtered }[] = [];
     filtered.forEach(e => {
@@ -105,11 +109,26 @@ export default function ExpensesPage() {
     return groups;
   }, [filtered]);
 
+  // Group by category
+  const groupedByCategory = useMemo(() => {
+    const groups: { category: string; items: typeof filtered }[] = [];
+    filtered.forEach(e => {
+      const last = groups[groups.length - 1];
+      if (last && last.category === e.category) {
+        last.items.push(e);
+      } else {
+        groups.push({ category: e.category, items: [e] });
+      }
+    });
+    return groups;
+  }, [filtered]);
+
   const SORT_OPTIONS = [
-    { key: 'date-desc',   label: 'Newest first',    icon: '🗓️' },
-    { key: 'date-asc',    label: 'Oldest first',     icon: '📅' },
-    { key: 'amount-desc', label: 'Highest amount',   icon: '⬆️' },
-    { key: 'amount-asc',  label: 'Lowest amount',    icon: '⬇️' },
+    { key: 'date-desc',   label: 'Newest first',      icon: '🗓️' },
+    { key: 'date-asc',    label: 'Oldest first',       icon: '📅' },
+    { key: 'amount-desc', label: 'Highest amount',     icon: '⬆️' },
+    { key: 'amount-asc',  label: 'Lowest amount',      icon: '⬇️' },
+    { key: 'category',    label: 'Group by category',  icon: '🏷️' },
   ] as const;
 
   return (
@@ -359,76 +378,106 @@ export default function ExpensesPage() {
                 </AnimatePresence>
               </div>
 
-              {/* Date-grouped transaction rows */}
+              {/* Transaction rows — grouped by date, category, or flat */}
               <div>
-                {(sort === 'date-desc' || sort === 'date-asc' ? groupedByDate : [{ date: '', items: filtered }]).map(group => (
-                  <div key={group.date}>
-                    {/* Date header */}
-                    {group.date && (
-                      <div className="px-5 py-2 bg-[#F8F8FC] border-y border-[#F0EEF8] flex items-center justify-between sticky top-0 z-[1]">
-                        <p className="text-[11px] font-black uppercase tracking-widest text-[#9096B4]">
-                          {new Date(group.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-                        </p>
-                        <p className="text-[11px] font-bold text-[#C0BFCC]">
-                          {formatCompact(group.items.reduce((s, e) => s + e.amount, 0), currency)}
-                        </p>
-                      </div>
-                    )}
-                    <div className="divide-y divide-[#F5F5F8]">
-                      {group.items.map((exp, i) => {
-                        const cat = EXPENSE_CATEGORIES.find(c => c.value === exp.category);
-                        const color = CATEGORY_COLORS[exp.category] || '#9096B4';
-                        const isExpanded = expandedId === exp.id;
-                        return (
-                          <motion.div key={exp.id}
-                            initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }}
-                            transition={{ delay: i * 0.03 }}>
-                            <div
-                              onClick={() => setExpandedId(isExpanded ? null : (exp.id ?? null))}
-                              className="flex items-center gap-3 px-5 py-4 group hover:bg-[#FAFAF8] transition-colors cursor-pointer">
-                              <motion.div whileHover={{ scale: 1.12, rotate: 4 }}
-                                className="w-11 h-11 rounded-2xl flex items-center justify-center text-xl shrink-0 shadow-sm"
-                                style={{ backgroundColor: `${color}15`, border: `1.5px solid ${color}25` }}>
-                                {cat?.icon || '📦'}
-                              </motion.div>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-bold text-[#1A1A2E] truncate">{exp.note || exp.category}</p>
-                                <p className="text-xs text-[#9096B4]">
-                                  <span className="font-semibold" style={{ color }}>{exp.category}</span>
-                                  {sort !== 'date-desc' && sort !== 'date-asc' && (
-                                    <>{' · '}{new Date(exp.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</>
-                                  )}
-                                  {exp.tags?.includes('recurring') && <span className="ml-1.5 text-[#FFB547] font-bold">🔄</span>}
-                                </p>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <span className="font-black text-[#1A1A2E] text-sm">{formatCurrency(exp.amount, currency)}</span>
-                                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
-                                  <button onClick={() => { setEditing(exp); setFormOpen(true); }}
-                                    className="p-1.5 rounded-xl hover:bg-[#F0EEFF] text-[#C0BFCC] hover:text-[#7B61FF]"><Edit2 size={13}/></button>
-                                  <button onClick={async () => { if (exp.id) { await deleteExpense(exp.id); toast('Removed 🗑️'); } }}
-                                    className="p-1.5 rounded-xl hover:bg-[#FFF0EE] text-[#C0BFCC] hover:text-[#FF6152]"><Trash2 size={13}/></button>
+                {(() => {
+                  type Group = { key: string; label: string; sublabel?: string; color?: string; icon?: string; total: number; items: typeof filtered };
+                  let groups: Group[];
+
+                  if (sort === 'date-desc' || sort === 'date-asc') {
+                    groups = groupedByDate.map(g => ({
+                      key: g.date,
+                      label: new Date(g.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
+                      total: g.items.reduce((s, e) => s + e.amount, 0),
+                      items: g.items,
+                    }));
+                  } else if (sort === 'category') {
+                    groups = groupedByCategory.map(g => {
+                      const catMeta = EXPENSE_CATEGORIES.find(c => c.value === g.category);
+                      const color = CATEGORY_COLORS[g.category] || '#9096B4';
+                      return {
+                        key: g.category,
+                        label: catMeta?.label || g.category,
+                        icon: catMeta?.icon,
+                        color,
+                        total: g.items.reduce((s, e) => s + e.amount, 0),
+                        items: g.items,
+                      };
+                    });
+                  } else {
+                    groups = [{ key: 'all', label: '', total: 0, items: filtered }];
+                  }
+
+                  return groups.map(group => (
+                    <div key={group.key}>
+                      {/* Group header */}
+                      {group.label && (
+                        <div className="px-5 py-2 bg-[#F8F8FC] border-y border-[#F0EEF8] flex items-center justify-between sticky top-0 z-[1]">
+                          <p className="text-[11px] font-black uppercase tracking-widest flex items-center gap-1.5" style={{ color: group.color || '#9096B4' }}>
+                            {group.icon && <span className="text-base">{group.icon}</span>}
+                            {group.label}
+                          </p>
+                          <p className="text-[11px] font-bold text-[#C0BFCC]">
+                            {formatCompact(group.total, currency)}
+                          </p>
+                        </div>
+                      )}
+                      <div className="divide-y divide-[#F5F5F8]">
+                        {group.items.map((exp, i) => {
+                          const cat = EXPENSE_CATEGORIES.find(c => c.value === exp.category);
+                          const color = CATEGORY_COLORS[exp.category] || '#9096B4';
+                          const isExpanded = expandedId === exp.id;
+                          return (
+                            <motion.div key={exp.id}
+                              initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }}
+                              transition={{ delay: i * 0.03 }}>
+                              <div
+                                onClick={() => setExpandedId(isExpanded ? null : (exp.id ?? null))}
+                                className="flex items-center gap-3 px-5 py-4 group hover:bg-[#FAFAF8] transition-colors cursor-pointer">
+                                <motion.div whileHover={{ scale: 1.12, rotate: 4 }}
+                                  className="w-11 h-11 rounded-2xl flex items-center justify-center text-xl shrink-0 shadow-sm"
+                                  style={{ backgroundColor: `${color}15`, border: `1.5px solid ${color}25` }}>
+                                  {cat?.icon || '📦'}
+                                </motion.div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-bold text-[#1A1A2E] truncate">{exp.note || exp.category}</p>
+                                  <p className="text-xs text-[#9096B4]">
+                                    {sort !== 'category' && <span className="font-semibold" style={{ color }}>{exp.category}</span>}
+                                    {(sort === 'amount-desc' || sort === 'amount-asc' || sort === 'category') && (
+                                      <>{sort !== 'category' ? ' · ' : ''}{new Date(exp.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</>
+                                    )}
+                                    {exp.tags?.includes('recurring') && <span className="ml-1.5 text-[#FFB547] font-bold">🔄</span>}
+                                  </p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-black text-[#1A1A2E] text-sm">{formatCurrency(exp.amount, currency)}</span>
+                                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
+                                    <button onClick={() => { setEditing(exp); setFormOpen(true); }}
+                                      className="p-1.5 rounded-xl hover:bg-[#F0EEFF] text-[#C0BFCC] hover:text-[#7B61FF]"><Edit2 size={13}/></button>
+                                    <button onClick={async () => { if (exp.id) { await deleteExpense(exp.id); toast('Removed 🗑️'); } }}
+                                      className="p-1.5 rounded-xl hover:bg-[#FFF0EE] text-[#C0BFCC] hover:text-[#FF6152]"><Trash2 size={13}/></button>
+                                  </div>
                                 </div>
                               </div>
-                            </div>
-                            <AnimatePresence>
-                              {isExpanded && exp.description && (
-                                <motion.div
-                                  initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
-                                  className="overflow-hidden">
-                                  <div className="mx-5 mb-3 px-4 py-3 rounded-2xl bg-[#F8F8FC] border border-[#EEEDF5]">
-                                    <p className="text-[10px] font-bold uppercase tracking-widest text-[#C0BFCC] mb-1">Note</p>
-                                    <p className="text-sm text-[#4A4A6A]">{exp.description}</p>
-                                  </div>
-                                </motion.div>
-                              )}
-                            </AnimatePresence>
-                          </motion.div>
-                        );
-                      })}
+                              <AnimatePresence>
+                                {isExpanded && exp.description && (
+                                  <motion.div
+                                    initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+                                    className="overflow-hidden">
+                                    <div className="mx-5 mb-3 px-4 py-3 rounded-2xl bg-[#F8F8FC] border border-[#EEEDF5]">
+                                      <p className="text-[10px] font-bold uppercase tracking-widest text-[#C0BFCC] mb-1">Note</p>
+                                      <p className="text-sm text-[#4A4A6A]">{exp.description}</p>
+                                    </div>
+                                  </motion.div>
+                                )}
+                              </AnimatePresence>
+                            </motion.div>
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ));
+                })()}
               </div>
             </>
           )}
