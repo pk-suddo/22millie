@@ -15,9 +15,10 @@ interface Props {
   open: boolean;
   onClose: () => void;
   editing?: Expense;
+  defaultDate?: string;
 }
 
-export function ExpenseForm({ open, onClose, editing }: Props) {
+export function ExpenseForm({ open, onClose, editing, defaultDate }: Props) {
   const { addExpense, updateExpense, customCategories, addCategory, removeCategory } = useStore();
   const { toast } = useToast();
 
@@ -29,7 +30,7 @@ export function ExpenseForm({ open, onClose, editing }: Props) {
   const [form, setForm] = useState({
     amount: editing?.amount?.toString() || '',
     category: editing?.category || 'Food',
-    date: editing?.date || getLocalToday(),
+    date: editing?.date || defaultDate || getLocalToday(),
     note: editing?.note || '',
     recurring: editing?.tags?.includes('recurring') || false,
   });
@@ -42,13 +43,13 @@ export function ExpenseForm({ open, onClose, editing }: Props) {
       setForm({
         amount: editing?.amount?.toString() || '',
         category: editing?.category || 'Food',
-        date: editing?.date || getLocalToday(),
+        date: editing?.date || defaultDate || getLocalToday(),
         note: editing?.note || '',
         recurring: editing?.tags?.includes('recurring') || false,
       });
       setShowAddCat(false);
     }
-  }, [open, editing]);
+  }, [open, editing, defaultDate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

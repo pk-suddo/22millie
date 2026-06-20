@@ -1,31 +1,45 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Modal } from '@/components/ui/modal';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { useStore } from '@/store/useStore';
 import { useToast } from '@/components/ui/toast';
-import { INCOME_SOURCES } from '@/lib/utils';
+import { INCOME_SOURCES, getLocalToday } from '@/lib/utils';
 import type { Income } from '@/lib/db';
 
 interface IncomeFormProps {
   open: boolean;
   onClose: () => void;
   editing?: Income;
+  defaultDate?: string;
 }
 
-export function IncomeForm({ open, onClose, editing }: IncomeFormProps) {
+export function IncomeForm({ open, onClose, editing, defaultDate }: IncomeFormProps) {
   const { addIncome, updateIncome } = useStore();
   const { toast } = useToast();
   const [form, setForm] = useState({
     name: editing?.name || '',
     amount: editing?.amount?.toString() || '',
-    frequency: editing?.frequency || 'monthly',
-    date: editing?.date || new Date().toISOString().split('T')[0],
+    frequency: editing?.frequency || 'one-time',
+    date: editing?.date || defaultDate || getLocalToday(),
     source: editing?.source || 'Primary Job',
     notes: editing?.notes || '',
   });
+
+  useEffect(() => {
+    if (open) {
+      setForm({
+        name: editing?.name || '',
+        amount: editing?.amount?.toString() || '',
+        frequency: editing?.frequency || 'one-time',
+        date: editing?.date || defaultDate || getLocalToday(),
+        source: editing?.source || 'Primary Job',
+        notes: editing?.notes || '',
+      });
+    }
+  }, [open, editing, defaultDate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
