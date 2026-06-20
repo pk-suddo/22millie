@@ -65,6 +65,8 @@ interface FinanceState {
   updateBorrowLend: (id: number, updates: Partial<BorrowLend>) => Promise<void>;
   deleteBorrowLend: (id: number) => Promise<void>;
   logBLPayment: (id: number, amount: number, note?: string) => Promise<void>;
+  updateBLPayment: (entryId: number, paymentId: number, updates: Partial<BLPayment>) => Promise<void>;
+  deleteBLPayment: (entryId: number, paymentId: number) => Promise<void>;
 
   updateProfile: (profile: Partial<UserProfile>) => Promise<void>;
   exportData: () => void;
@@ -239,6 +241,42 @@ export const useStore = create<FinanceState>((set, get) => ({
     const db = await load();
     if (!db.borrowLends) db.borrowLends = [];
     db.borrowLends = db.borrowLends.filter(b => b.id !== id);
+    await save(db);
+    await get().loadAll();
+  },
+
+  updateBLPayment: async (entryId, paymentId, updates) => {
+    const db = await load();
+    if (!db.borrowLends) db.borrowLends = [];
+    db.borrowLends = db.borrowLends.map((b: BorrowLend) => {
+      if (b.id !== entryId) return b;
+      const oldPayment = (b.payments ?? []).find((p: BLPayment) => p.id === paymentId);
+      const newPayments = (b.payments ?? []).map((p: BLPayment) =>
+        p.id === paymentId ? { ...p, ...updates } : p
+      );
+      // Recalculate paidAmount from all payments
+      const newPaidAmount = Math.min(
+        newPayments.reduce((s: number, p: BLPayment) => s + p.amount, 0),
+        b.totalAmount
+      );
+      return { ...b, payments: newPayments, paidAmount: newPaidAmount };
+    });
+    await save(db);
+    await get().loadAll();
+  },
+
+  deleteBLPayment: async (entryId, paymentId) => {
+    const db = await load();
+    if (!db.borrowLends) db.borrowLends = [];
+    db.borrowLends = db.borrowLends.map((b: BorrowLend) => {
+      if (b.id !== entryId) return b;
+      const newPayments = (b.payments ?? []).filter((p: BLPayment) => p.id !== paymentId);
+      const newPaidAmount = Math.min(
+        newPayments.reduce((s: number, p: BLPayment) => s + p.amount, 0),
+        b.totalAmount
+      );
+      return { ...b, payments: newPayments, paidAmount: newPaidAmount };
+    });
     await save(db);
     await get().loadAll();
   },
