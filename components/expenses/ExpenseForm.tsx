@@ -32,6 +32,7 @@ export function ExpenseForm({ open, onClose, editing, defaultDate }: Props) {
     category: editing?.category || 'Food',
     date: editing?.date || defaultDate || getLocalToday(),
     note: editing?.note || '',
+    description: editing?.description || '',
     recurring: editing?.tags?.includes('recurring') || false,
   });
 
@@ -45,6 +46,7 @@ export function ExpenseForm({ open, onClose, editing, defaultDate }: Props) {
         category: editing?.category || 'Food',
         date: editing?.date || defaultDate || getLocalToday(),
         note: editing?.note || '',
+        description: editing?.description || '',
         recurring: editing?.tags?.includes('recurring') || false,
       });
       setShowAddCat(false);
@@ -60,6 +62,7 @@ export function ExpenseForm({ open, onClose, editing, defaultDate }: Props) {
       category: form.category,
       date: form.date,
       note: form.note,
+      description: form.description || undefined,
       tags,
     };
     if (editing?.id) {
@@ -98,6 +101,12 @@ export function ExpenseForm({ open, onClose, editing, defaultDate }: Props) {
   return (
     <Modal open={open} onClose={onClose} title={editing ? 'Edit Expense' : 'Log Expense'}>
       <form onSubmit={handleSubmit} className="space-y-4">
+        <Input
+          label="Title"
+          placeholder="e.g. Grocery run, Bike installment"
+          value={form.note}
+          onChange={(e) => setForm({ ...form, note: e.target.value })}
+        />
         <Input
           label="Amount (NPR)"
           type="number"
@@ -224,10 +233,10 @@ export function ExpenseForm({ open, onClose, editing, defaultDate }: Props) {
           required
         />
         <Input
-          label="Note"
-          placeholder="e.g. Grocery run, Coffee with Jane"
-          value={form.note}
-          onChange={(e) => setForm({ ...form, note: e.target.value })}
+          label="Note (optional)"
+          placeholder="Any extra details, not shown in the list"
+          value={form.description}
+          onChange={(e) => setForm({ ...form, description: e.target.value })}
         />
         <div className="flex gap-3 pt-2">
           <Button type="button" variant="secondary" className="flex-1" onClick={onClose}>

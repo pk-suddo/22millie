@@ -17,6 +17,7 @@ export interface Expense {
   category: string;
   date: string;
   note: string;
+  description?: string;
   tags: string[];
   createdAt: string;
 }

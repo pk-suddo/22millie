@@ -45,6 +45,7 @@ export default function ExpensesPage() {
   const [editing, setEditing] = useState<Expense | undefined>();
   const [selectedCat, setSelectedCat] = useState('');
   const [search, setSearch] = useState('');
+  const [expandedId, setExpandedId] = useState<number | null>(null);
 
   const go = (d: number) => {
     const [y, m] = selectedMonth.split('-').map(Number);
@@ -297,33 +298,49 @@ export default function ExpensesPage() {
                 {filtered.map((exp, i) => {
                   const cat = EXPENSE_CATEGORIES.find(c => c.value === exp.category);
                   const color = CATEGORY_COLORS[exp.category] || '#9096B4';
+                  const isExpanded = expandedId === exp.id;
                   return (
                     <motion.div key={exp.id}
                       initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: i * 0.04 }}
-                      className="flex items-center gap-3 px-5 py-4 group hover:bg-[#FAFAF8] transition-colors">
-                      <motion.div whileHover={{ scale: 1.12, rotate: 4 }}
-                        className="w-11 h-11 rounded-2xl flex items-center justify-center text-xl shrink-0 shadow-sm"
-                        style={{ backgroundColor: `${color}15`, border: `1.5px solid ${color}25` }}>
-                        {cat?.icon || '📦'}
-                      </motion.div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-bold text-[#1A1A2E] truncate">{exp.note || exp.category}</p>
-                        <p className="text-xs text-[#9096B4]">
-                          <span className="font-semibold" style={{ color }}>{exp.category}</span>
-                          {' · '}{new Date(exp.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                          {exp.tags?.includes('recurring') && <span className="ml-1.5 text-[#FFB547] font-bold">🔄</span>}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-black text-[#1A1A2E] text-sm">{formatCurrency(exp.amount, currency)}</span>
-                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button onClick={() => { setEditing(exp); setFormOpen(true); }}
-                            className="p-1.5 rounded-xl hover:bg-[#F0EEFF] text-[#C0BFCC] hover:text-[#7B61FF]"><Edit2 size={13}/></button>
-                          <button onClick={async () => { if (exp.id) { await deleteExpense(exp.id); toast('Removed 🗑️'); } }}
-                            className="p-1.5 rounded-xl hover:bg-[#FFF0EE] text-[#C0BFCC] hover:text-[#FF6152]"><Trash2 size={13}/></button>
+                      transition={{ delay: i * 0.04 }}>
+                      <div
+                        onClick={() => setExpandedId(isExpanded ? null : (exp.id ?? null))}
+                        className="flex items-center gap-3 px-5 py-4 group hover:bg-[#FAFAF8] transition-colors cursor-pointer">
+                        <motion.div whileHover={{ scale: 1.12, rotate: 4 }}
+                          className="w-11 h-11 rounded-2xl flex items-center justify-center text-xl shrink-0 shadow-sm"
+                          style={{ backgroundColor: `${color}15`, border: `1.5px solid ${color}25` }}>
+                          {cat?.icon || '📦'}
+                        </motion.div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-bold text-[#1A1A2E] truncate">{exp.note || exp.category}</p>
+                          <p className="text-xs text-[#9096B4]">
+                            <span className="font-semibold" style={{ color }}>{exp.category}</span>
+                            {' · '}{new Date(exp.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                            {exp.tags?.includes('recurring') && <span className="ml-1.5 text-[#FFB547] font-bold">🔄</span>}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-black text-[#1A1A2E] text-sm">{formatCurrency(exp.amount, currency)}</span>
+                          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
+                            <button onClick={() => { setEditing(exp); setFormOpen(true); }}
+                              className="p-1.5 rounded-xl hover:bg-[#F0EEFF] text-[#C0BFCC] hover:text-[#7B61FF]"><Edit2 size={13}/></button>
+                            <button onClick={async () => { if (exp.id) { await deleteExpense(exp.id); toast('Removed 🗑️'); } }}
+                              className="p-1.5 rounded-xl hover:bg-[#FFF0EE] text-[#C0BFCC] hover:text-[#FF6152]"><Trash2 size={13}/></button>
+                          </div>
                         </div>
                       </div>
+                      <AnimatePresence>
+                        {isExpanded && exp.description && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+                            className="overflow-hidden">
+                            <div className="mx-5 mb-3 px-4 py-3 rounded-2xl bg-[#F8F8FC] border border-[#EEEDF5]">
+                              <p className="text-[10px] font-bold uppercase tracking-widest text-[#C0BFCC] mb-1">Note</p>
+                              <p className="text-sm text-[#4A4A6A]">{exp.description}</p>
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </motion.div>
                   );
                 })}
