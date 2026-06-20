@@ -32,6 +32,7 @@ interface FinanceState {
   goals: Goal[];
   goalDeposits: GoalDeposit[];
   customCategories: CustomCategory[];
+  hiddenCategories: string[];
   borrowLends: BorrowLend[];
   profile: UserProfile | null;
   selectedMonth: string;
@@ -57,6 +58,8 @@ interface FinanceState {
 
   addCategory: (cat: CustomCategory) => Promise<void>;
   removeCategory: (value: string) => Promise<void>;
+  hideCategory: (value: string) => Promise<void>;
+  showCategory: (value: string) => Promise<void>;
 
   addBorrowLend: (entry: Omit<BorrowLend, 'id' | 'createdAt'>) => Promise<void>;
   updateBorrowLend: (id: number, updates: Partial<BorrowLend>) => Promise<void>;
@@ -73,6 +76,7 @@ export const useStore = create<FinanceState>((set, get) => ({
   goals: [],
   goalDeposits: [],
   customCategories: [],
+  hiddenCategories: [],
   borrowLends: [],
   profile: null,
   selectedMonth: getMonthKey(),
@@ -88,6 +92,7 @@ export const useStore = create<FinanceState>((set, get) => ({
       goals: db.goals ?? [],
       goalDeposits: db.goalDeposits ?? [],
       customCategories: db.customCategories ?? [],
+      hiddenCategories: db.hiddenCategories ?? [],
       borrowLends: db.borrowLends ?? [],
       profile: db.profile ?? null,
       isLoading: false,
@@ -192,6 +197,22 @@ export const useStore = create<FinanceState>((set, get) => ({
     const db = await load();
     if (!db.customCategories) db.customCategories = [];
     db.customCategories = db.customCategories.filter(c => c.value !== value);
+    await save(db);
+    await get().loadAll();
+  },
+
+  hideCategory: async (value) => {
+    const db = await load();
+    if (!db.hiddenCategories) db.hiddenCategories = [];
+    if (!db.hiddenCategories.includes(value)) db.hiddenCategories.push(value);
+    await save(db);
+    await get().loadAll();
+  },
+
+  showCategory: async (value) => {
+    const db = await load();
+    if (!db.hiddenCategories) db.hiddenCategories = [];
+    db.hiddenCategories = db.hiddenCategories.filter((v: string) => v !== value);
     await save(db);
     await get().loadAll();
   },

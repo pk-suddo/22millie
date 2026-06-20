@@ -19,13 +19,13 @@ interface Props {
 }
 
 export function ExpenseForm({ open, onClose, editing, defaultDate }: Props) {
-  const { addExpense, updateExpense, customCategories, addCategory, removeCategory } = useStore();
+  const { addExpense, updateExpense, customCategories, hiddenCategories, addCategory, removeCategory, hideCategory } = useStore();
   const { toast } = useToast();
 
   const allCategories = [
     ...EXPENSE_CATEGORIES,
     ...customCategories.map(c => ({ label: c.label, value: c.value, icon: c.icon })),
-  ];
+  ].filter(c => !hiddenCategories.includes(c.value));
 
   const [form, setForm] = useState({
     amount: editing?.amount?.toString() || '',
@@ -85,8 +85,13 @@ export function ExpenseForm({ open, onClose, editing, defaultDate }: Props) {
   const handleRemoveCategory = async (e: React.MouseEvent, value: string) => {
     e.preventDefault();
     e.stopPropagation();
-    await removeCategory(value);
-    if (form.category === value) setForm(f => ({ ...f, category: 'Food' }));
+    const isCustom = customCategories.some(c => c.value === value);
+    if (isCustom) {
+      await removeCategory(value);
+    } else {
+      await hideCategory(value);
+    }
+    if (form.category === value) setForm(f => ({ ...f, category: allCategories.find(c => c.value !== value)?.value || 'Food' }));
     toast('Category removed');
   };
 
@@ -161,14 +166,13 @@ export function ExpenseForm({ open, onClose, editing, defaultDate }: Props) {
           {/* Category grid — custom categories have inline ✕ */}
           <div className="grid grid-cols-3 gap-2">
             {allCategories.map(cat => {
-              const isCustom = customCategories.some(c => c.value === cat.value);
               const isSelected = form.category === cat.value;
               return (
                 <button
                   key={cat.value}
                   type="button"
                   onClick={() => setForm({ ...form, category: cat.value })}
-                  className={`flex items-center gap-1.5 px-2.5 py-2.5 rounded-xl text-sm font-medium transition-all border ${
+                  className={`flex items-center gap-1.5 px-2.5 py-2.5 rounded-xl text-sm font-medium transition-all border group ${
                     isSelected
                       ? 'text-white border-transparent shadow-md'
                       : 'bg-white text-[#4A4A6A] border-[#E8E5E0] hover:border-[#C8C5FF] hover:bg-[#F8F7FF]'
@@ -177,17 +181,15 @@ export function ExpenseForm({ open, onClose, editing, defaultDate }: Props) {
                 >
                   <span className="text-base shrink-0">{cat.icon}</span>
                   <span className="truncate text-xs flex-1 text-left">{cat.label}</span>
-                  {isCustom && (
-                    <span
-                      role="button"
-                      onClick={(e) => handleRemoveCategory(e, cat.value)}
-                      className={`shrink-0 w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold ml-auto transition-colors ${
-                        isSelected ? 'bg-white/30 hover:bg-white/50 text-white' : 'bg-[#FF6152]/20 hover:bg-[#FF6152] text-[#FF6152] hover:text-white'
-                      }`}
-                    >
-                      ✕
-                    </span>
-                  )}
+                  <span
+                    role="button"
+                    onClick={(e) => handleRemoveCategory(e, cat.value)}
+                    className={`shrink-0 w-4 h-4 rounded-full items-center justify-center text-[9px] font-bold ml-auto transition-colors hidden group-hover:flex ${
+                      isSelected ? 'bg-white/30 hover:bg-white/50 text-white' : 'bg-[#FF6152]/20 hover:bg-[#FF6152] text-[#FF6152] hover:text-white'
+                    }`}
+                  >
+                    ✕
+                  </span>
                 </button>
               );
             })}
