@@ -8,15 +8,6 @@
 
 ---
 
-## 📸 Screenshots
-
-| Dashboard | Expenses |
-|---|---|
-| ![Dashboard](docs/screenshots/dashboard.png) | ![Expenses](docs/screenshots/expenses.png) |
-
-| Income | Goals & Borrow/Lend |
-|---|---|
-| ![Income](docs/screenshots/income.png) | ![Goals](docs/screenshots/goals.png) |
 
 ---
 
