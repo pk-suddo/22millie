@@ -1,49 +1,64 @@
-# 22millie 💰
+# 👑 CEO Networth
 
-> *Your money, your story — tracked with calm.*
+> *Know where every rupee goes. Build wealth like a CEO.*
 
-**22millie** is a privacy-first, local personal finance tracker built for the Nepali context. No accounts, no cloud sync, no subscriptions — your financial data lives entirely on your own device.
+**CEO Networth** is the cleanest personal finance tracker for daily transactions — built for Nepal, works offline, zero cloud dependency. No accounts. No subscriptions. Your data stays on your device.
+
+🔗 **GitHub:** [github.com/pk-suddo/22millie](https://github.com/pk-suddo/22millie)
+
+---
+
+## 📸 Screenshots
+
+| Dashboard | Expenses |
+|---|---|
+| ![Dashboard](docs/screenshots/dashboard.png) | ![Expenses](docs/screenshots/expenses.png) |
+
+| Income | Goals & Borrow/Lend |
+|---|---|
+| ![Income](docs/screenshots/income.png) | ![Goals](docs/screenshots/goals.png) |
 
 ---
 
 ## ✨ Features
 
 ### 📊 Dashboard
-- Live net worth snapshot (income minus expenses, up to today's date in Nepal time)
-- Income, Spent, and Recurring payment tiles for the current month
-- Cash flow bar with savings rate percentage
+- Live net worth snapshot (income minus all expenses, Nepal time)
+- Monthly income, spent, and recurring payment summary tiles
+- Cash flow bar with savings rate
 - Recent transactions feed
-- Interactive calendar — tap any day to add, edit, or delete income and expenses
+- Interactive calendar — tap any date to add or edit transactions
 
 ### 💰 Income
-- Log income with title, amount, source, frequency (monthly / one-time / weekly), and date
-- Dark galaxy hero card with animated total
-- Interactive source breakdown cards (Primary Job, Freelance, Investments, Side Hustle, etc.)
-- Tap any source card to filter the list
+- Log income with title, source, frequency (monthly / one-time / weekly), and date
+- Dark hero card with animated total and source breakdown
+- Filter by source (Primary Job, Freelance, Investments, Side Hustle…)
+- Edit and delete any entry inline
 
 ### 💸 Expenses
-- Log expenses with a **Title** (shown in list) and a private **Note** (only visible when tapped)
-- 12 built-in categories + unlimited custom categories with emoji + color picker
-- Hide any category from the picker (persisted across sessions)
-- Recurring expense toggle
-- Tap any transaction row to reveal the private note inline
-- Donut chart and Bar chart views by category
+- Log with a **Title** (visible in list) + private **Note** (tap to reveal)
+- Date-grouped transaction list with daily totals
+- Sort by: Newest · Oldest · Highest Amount · Lowest Amount · **Group by Category**
+- 12 built-in categories + unlimited custom categories (emoji + color picker)
+- Hide any category from the picker — persisted across sessions
+- Donut chart and Bar chart breakdown by category
+- Search and filter by category
 
-### 🎯 Goals
-- Savings goals with target amount, target date, and emoji
+### 🎯 Goals & Savings
+- Set savings goals with target amount, target date, and emoji
 - Circular progress ring per goal
-- Deposit history with date and note
+- Deposit log with date and note per goal
 
 ### 🤝 Borrow & Lend
 - Separate **Borrowed** and **Lent** tabs — merchant-ledger style
-- Per-entry detail drawer: remaining balance, progress bar, months to clear
+- Per-entry detail: remaining balance, progress bar, months to clear
 - Log repayments with amount, date, and comment
-- **Inline edit & delete** each payment history entry
-- Remaining balance auto-recalculates after every edit or deletion
+- Inline edit and delete each payment history entry
+- Balance auto-recalculates after every change
 
 ### 🤖 AI Assistant
-- Optional AI chat powered by OpenAI or Anthropic
-- Reads your actual transaction data for personalized financial insights
+- Optional AI chat that reads your actual transaction data
+- Personalized spending insights and financial advice
 
 ---
 
@@ -56,7 +71,7 @@
 | Styling | Tailwind CSS |
 | Animations | Framer Motion |
 | State | Zustand |
-| Persistence | File-based JSON (`data/finance.json`) via Next.js API routes |
+| Persistence | localStorage (instant) + file-based JSON sync |
 | Charts | Recharts |
 
 ---
@@ -70,7 +85,7 @@
 ### Install & Run
 
 ```bash
-git clone https://github.com/vincity409/22millie.git
+git clone https://github.com/pk-suddo/22millie.git
 cd 22millie
 npm install
 npm run dev
@@ -78,7 +93,7 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-The app seeds sample data on first launch so you can explore immediately.
+The app loads from `localStorage` instantly — data persists across browser sessions without needing the server running.
 
 ### Build for Production
 
@@ -96,36 +111,38 @@ npm start
 ├── app/
 │   ├── page.tsx          # Dashboard
 │   ├── income/           # Income tracker
-│   ├── expenses/         # Expense tracker
+│   ├── expenses/         # Expense tracker + sort/group
 │   ├── goals/            # Goals + Borrow & Lend
-│   └── api/data/         # File-based persistence API (GET/POST)
+│   └── api/data/         # File-based sync API (GET/POST)
 ├── components/
 │   ├── expenses/         # ExpenseForm with category picker
-│   ├── goals/            # GoalForm
+│   ├── goals/            # GoalForm + BorrowLendDrawer
 │   ├── income/           # IncomeForm
 │   └── ui/               # Modal, Input, Toast, Calendar, AnimatedNumber…
 ├── store/
-│   └── useStore.ts       # Zustand global store + all mutations
+│   └── useStore.ts       # Zustand store — localStorage + API dual persistence
 ├── lib/
-│   ├── db.ts             # TypeScript interfaces (Income, Expense, Goal, BorrowLend…)
+│   ├── db.ts             # TypeScript interfaces
 │   └── utils.ts          # Formatters, category data, Nepal timezone helpers
 └── data/
-    └── finance.json      # Your local data — gitignored, stays on your machine
+    └── finance.json      # Server-side backup — gitignored
 ```
 
 ---
 
-## 🔒 Privacy
+## 🔒 Privacy First
 
-`data/finance.json` is listed in `.gitignore` and **never leaves your machine**. There is no telemetry, no analytics, and no third-party data sharing of any kind.
+- `data/finance.json` is **gitignored** — never committed, never uploaded
+- Data lives in **your browser's localStorage** and optionally synced to a local file
+- Zero telemetry, zero analytics, zero third-party data sharing
 
 ---
 
-## 🌏 Nepal-First Design
+## 🌏 Built for Nepal
 
 - Currency defaults to **NPR (Nepalese Rupee)**
-- All dates and "today" comparisons use **Nepal Standard Time (UTC+5:45)** to avoid timezone drift
-- Compact number formatting: NPR 1.5L, NPR 85.4K
+- All date comparisons use **Nepal Standard Time (UTC+5:45)**
+- Compact formatting: NPR 1.5L, NPR 85.4K
 
 ---
 
@@ -135,18 +152,18 @@ npm start
 - [ ] Budget limits per category with alerts
 - [ ] Recurring income auto-entry each month
 - [ ] Multi-currency support
-- [ ] PWA / installable mobile app
+- [ ] PWA / installable as mobile app
 
 ---
 
 ## 🤝 Contributing
 
-Pull requests are welcome. For major changes please open an issue first to discuss what you'd like to change.
+Pull requests are welcome. Open an issue first for major changes.
 
 1. Fork the repo
-2. Create your feature branch: `git checkout -b feature/my-feature`
-3. Commit your changes: `git commit -m 'Add my feature'`
-4. Push to the branch: `git push origin feature/my-feature`
+2. Create your branch: `git checkout -b feature/my-feature`
+3. Commit: `git commit -m 'Add my feature'`
+4. Push: `git push origin feature/my-feature`
 5. Open a Pull Request
 
 ---
