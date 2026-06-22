@@ -30,13 +30,13 @@ export function Sidebar() {
     >
       {/* Logo */}
       <div className="flex items-center gap-3 px-4 py-5 border-b border-[#F0EDE8]">
-        <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 text-white text-xs font-black"
-          style={{ background: 'linear-gradient(135deg, #7B61FF, #FF6152)' }}>
-          22
+        <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 text-yellow-400 text-base font-black"
+          style={{ background: 'linear-gradient(135deg, #1A1A2E, #7B61FF)' }}>
+          👑
         </div>
         {!collapsed && (
           <div>
-            <div className="font-black text-[#1A1A2E] text-sm leading-tight">22millie</div>
+            <div className="font-black text-[#1A1A2E] text-sm leading-tight">CEO Networth</div>
             <div className="text-xs text-[#9CA3AF] leading-tight">{profile?.name || 'Personal'}</div>
           </div>
         )}

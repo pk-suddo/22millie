@@ -4,7 +4,7 @@ import { AppShell } from '@/components/layout/AppShell';
 import { ToastProvider } from '@/components/ui/toast';
 
 export const metadata: Metadata = {
-  title: '22millie',
+  title: 'CEO Networth',
   description: 'Your personal finance tracker',
   icons: { icon: '/favicon.svg' },
 };

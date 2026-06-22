@@ -13,17 +13,47 @@ interface DB {
   _nextId: Record<string, number>;
 }
 
+const LS_KEY = 'ceo-builder-data';
+
+function lsLoad(): DB | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+function lsSave(data: DB) {
+  if (typeof window === 'undefined') return;
+  try { localStorage.setItem(LS_KEY, JSON.stringify(data)); } catch { /* quota exceeded */ }
+}
+
 async function load(): Promise<DB> {
-  const res = await fetch('/api/data');
-  return res.json();
+  // Try server first; if it fails (different machine/browser without server), fall back to localStorage
+  try {
+    const res = await fetch('/api/data', { signal: AbortSignal.timeout(3000) });
+    if (res.ok) {
+      const db = await res.json();
+      lsSave(db); // keep localStorage in sync
+      return db;
+    }
+  } catch { /* server not reachable */ }
+  const local = lsLoad();
+  if (local) return local;
+  // Return empty DB structure
+  return { income: [], expenses: [], goals: [], goalDeposits: [], customCategories: [], borrowLends: [], hiddenCategories: [], profile: { name: '', currency: 'NPR' } as import('@/lib/db').UserProfile, _nextId: {} };
 }
 
 async function save(data: DB) {
-  await fetch('/api/data', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
-  });
+  lsSave(data); // always save to localStorage immediately
+  try {
+    await fetch('/api/data', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+      signal: AbortSignal.timeout(3000),
+    });
+  } catch { /* server not reachable — localStorage already saved */ }
 }
 
 interface FinanceState {
@@ -317,7 +347,7 @@ export const useStore = create<FinanceState>((set, get) => ({
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `22millie-${new Date().toISOString().split('T')[0]}.json`;
+    a.download = `ceo-builder-${new Date().toISOString().split('T')[0]}.json`;
     a.click();
     URL.revokeObjectURL(url);
   },
